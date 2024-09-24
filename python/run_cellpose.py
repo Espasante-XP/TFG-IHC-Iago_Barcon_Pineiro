@@ -46,7 +46,7 @@ imagenes = cargar_imagenes('ruta/a/tu/carpeta')
 
 imagenes = []
 
-ruta_carpeta = './Imagenes_para_entrenamiento/IL6_1'
+ruta_carpeta = '../Imagenes_para_entrenamiento/IL6_1' 
 
 #i = 0
 for nombre_archivo in os.listdir(ruta_carpeta):

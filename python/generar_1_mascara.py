@@ -32,7 +32,7 @@ files = ['./Imagenes_para_entrenamiento/IL6_1/Image_1033.jpg']
 
 imagenes = []
 
-ruta_carpeta = 'C:/Users/iagob/OneDrive/Escritorio/Trabajo_TFG_local/TFG/Trabajo_TFG_actual/Imagenes para entrenamiento/IL6_1'   #./Imagenes_para_entrenamiento/IL6_1
+ruta_carpeta = '../Imagenes_para_entrenamiento/IL6_1'   #./Imagenes_para_entrenamiento/IL6_1
 
 #C:\Users\iagob\OneDrive\Escritorio\Trabajo_TFG_local\TFG\Trabajo_TFG_actual\Imagenes para entrenamiento\IL6_1
 
@@ -112,16 +112,16 @@ def visualize_seg_mask(image: np.ndarray, mask: np.ndarray):
 
 
    ruta_carpeta = 'C:/Users/iagob/OneDrive/Escritorio/Trabajo_TFG_local/TFG/Trabajo_TFG_actual/Imagenes para entrenamiento/IL6_1'
-"""
+
 
 imagen_mascara = 'C:/Users/iagob/OneDrive/Escritorio/Trabajo_TFG_local/TFG/Trabajo_TFG_actual/Imagenes para entrenamiento/IL6_1/Image_1034_cp_masks.png'
 
 archivo_mascara = 'C:/Users/iagob/OneDrive/Escritorio/Trabajo_TFG_local/TFG/Trabajo_TFG_actual/Imagenes para entrenamiento/IL6_1/Image_1034_seg.npy'
 
- import visualize_seg_mask
+import visualize_seg_mask
 
 visualize_seg_mask(imagen_mascara, archivo_mascara)
-
+"""
    
 # DISPLAY RESULTS
 from cellpose import plot
