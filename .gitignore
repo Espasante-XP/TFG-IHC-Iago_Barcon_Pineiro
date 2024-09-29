@@ -5,4 +5,4 @@ Imagenes para entrenamiento.zip
 Imagenes para entrenamiento/
 Imagenes_para_entrenamiento/
 **/*.npy
-
+__pycache__/
