@@ -22,6 +22,7 @@ TORCH_ENABLED = True
 core_logger = logging.getLogger(__name__)
 tqdm_out = utils.TqdmToLogger(core_logger, level=logging.INFO)
 
+
 def use_gpu(gpu_number=0, use_torch=True):
     """ 
     Check if GPU is available for use.
@@ -44,13 +45,13 @@ def use_gpu(gpu_number=0, use_torch=True):
 
 def _use_gpu_torch(gpu_number=0):
     """
-    Checks if CUDA is available and working with PyTorch.
+    Checks if CUDA or MPS is available and working with PyTorch.
 
     Args:
         gpu_number (int): The GPU device number to use (default is 0).
 
     Returns:
-        bool: True if CUDA is available and working, False otherwise.
+        bool: True if CUDA or MPS is available and working, False otherwise.
     """
     try:
         device = torch.device("cuda:" + str(gpu_number))
@@ -58,7 +59,14 @@ def _use_gpu_torch(gpu_number=0):
         core_logger.info("** TORCH CUDA version installed and working. **")
         return True
     except:
-        core_logger.info("TORCH CUDA version not installed/working.")
+        pass
+    try:
+        device = torch.device('mps:' + str(gpu_number))
+        _ = torch.zeros([1, 2, 3]).to(device)
+        core_logger.info('** TORCH MPS version installed and working. **')
+        return True
+    except:
+        core_logger.info('Neither TORCH CUDA nor MPS version not installed/working.')
         return False
 
 
@@ -75,28 +83,35 @@ def assign_device(use_torch=True, gpu=False, device=0):
         torch.device: The assigned device.
         bool: True if GPU is used, False otherwise.
     """
-    mac = False
-    cpu = True
+
     if isinstance(device, str):
-        if device == "mps":
-            mac = True
-        else:
+        if device != "mps" or not(gpu and torch.backends.mps.is_available()):
             device = int(device)
     if gpu and use_gpu(use_torch=True):
-        device = torch.device(f"cuda:{device}")
-        gpu = True
-        cpu = False
-        core_logger.info(">>>> using GPU")
-    elif mac:
         try:
-            device = torch.device("mps")
-            gpu = True
-            cpu = False
-            core_logger.info(">>>> using GPU")
+            if torch.cuda.is_available():
+                device = torch.device(f'cuda:{device}')
+                core_logger.info(">>>> using GPU (CUDA)")
+                gpu = True
+                cpu = False
         except:
-            cpu = True
             gpu = False
-
+            cpu = True
+        try:
+            if torch.backends.mps.is_available():
+                device = torch.device('mps')
+                core_logger.info(">>>> using GPU (MPS)")
+                gpu = True
+                cpu = False
+        except:
+            gpu = False
+            cpu = True
+    else:
+        device = torch.device('cpu')
+        core_logger.info('>>>> using CPU')
+        gpu = False
+        cpu = True
+    
     if cpu:
         device = torch.device("cpu")
         core_logger.info(">>>> using CPU")
@@ -180,7 +195,7 @@ def _forward(net, x):
     return y, style
 
 
-def run_net(net, imgs, batch_size=8, augment=False, tile=True, tile_overlap=0.1, 
+def run_net(net, imgs, batch_size=8, augment=False, tile=True, tile_overlap=0.1,
             bsize=224):
     """ 
     Run network on image or stack of images.
@@ -219,14 +234,14 @@ def run_net(net, imgs, batch_size=8, augment=False, tile=True, tile_overlap=0.1,
     # slices from padding
     #         slc = [slice(0, self.nclasses) for n in range(imgs.ndim)] # changed from imgs.shape[n]+1 for first slice size
     slc = [slice(0, imgs.shape[n] + 1) for n in range(imgs.ndim)]
-    slc[-3] = slice(0, 3)
+    slc[-3] = slice(0, net.nout)
     slc[-2] = slice(ysub[0], ysub[-1] + 1)
     slc[-1] = slice(xsub[0], xsub[-1] + 1)
     slc = tuple(slc)
 
     # run network
     if tile or augment or imgs.ndim == 4:
-        y, style = _run_tiled(net, imgs, augment=augment, bsize=bsize, 
+        y, style = _run_tiled(net, imgs, augment=augment, bsize=bsize,
                               batch_size=batch_size, tile_overlap=tile_overlap)
     else:
         imgs = np.expand_dims(imgs, axis=0)
@@ -240,6 +255,7 @@ def run_net(net, imgs, batch_size=8, augment=False, tile=True, tile_overlap=0.1,
     y = np.transpose(y, detranspose)
 
     return y, style
+
 
 def _run_tiled(net, imgi, batch_size=8, augment=False, bsize=224, tile_overlap=0.1):
     """ 
@@ -261,45 +277,51 @@ def _run_tiled(net, imgi, batch_size=8, augment=False, bsize=224, tile_overlap=0
     """
     nout = net.nout
     if imgi.ndim == 4:
-        Lz, nchan = imgi.shape[:2]
-        IMG, ysub, xsub, Ly, Lx = transforms.make_tiles(imgi[0], bsize=bsize,
-                                                        augment=augment,
-                                                        tile_overlap=tile_overlap)
-        ny, nx, nchan, ly, lx = IMG.shape
-        batch_size *= max(4, (bsize**2 // (ly * lx))**0.5)
+        Lz, nchan, Ly, Lx = imgi.shape 
+        if augment:
+            ny = max(2, int(np.ceil(2. * Ly / bsize)))
+            nx = max(2, int(np.ceil(2. * Lx / bsize)))
+            ly, lx = bsize, bsize
+        else:
+            ny = 1 if Ly <= bsize else int(np.ceil((1. + 2 * tile_overlap) * Ly / bsize))
+            nx = 1 if Lx <= bsize else int(np.ceil((1. + 2 * tile_overlap) * Lx / bsize))
+            ly, lx = min(bsize, Ly), min(bsize, Lx)
         yf = np.zeros((Lz, nout, imgi.shape[-2], imgi.shape[-1]), np.float32)
         styles = []
         if ny * nx > batch_size:
-            ziterator = trange(Lz, file=tqdm_out)
+            ziterator = (trange(Lz, file=tqdm_out, mininterval=30) 
+                         if Lz > 1 else range(Lz))
             for i in ziterator:
                 yfi, stylei = _run_tiled(net, imgi[i], augment=augment, bsize=bsize,
-                                         tile_overlap=tile_overlap)
+                                         batch_size=batch_size, tile_overlap=tile_overlap)
                 yf[i] = yfi
                 styles.append(stylei)
         else:
             # run multiple slices at the same time
             ntiles = ny * nx
-            nimgs = max(2, int(np.round(batch_size / ntiles)))
+            nimgs = batch_size // ntiles # number of z-slices to run at the same time
             niter = int(np.ceil(Lz / nimgs))
-            ziterator = trange(niter, file=tqdm_out)
+            ziterator = (trange(niter, file=tqdm_out, mininterval=30) 
+                         if Lz > 1 else range(niter))
             for k in ziterator:
-                IMGa = np.zeros((ntiles * nimgs, nchan, ly, lx), np.float32)
-                for i in range(min(Lz - k * nimgs, nimgs)):
+                inds = np.arange(k * nimgs, min(Lz, (k + 1) * nimgs))
+                IMGa = np.zeros((ntiles * len(inds), nchan, ly, lx), "float32")
+                for i, b in enumerate(inds):
                     IMG, ysub, xsub, Ly, Lx = transforms.make_tiles(
-                        imgi[k * nimgs + i], bsize=bsize, augment=augment,
+                        imgi[b], bsize=bsize, augment=augment,
                         tile_overlap=tile_overlap)
-                    IMGa[i * ntiles:(i + 1) * ntiles] = np.reshape(
-                        IMG, (ny * nx, nchan, ly, lx))
+                    IMGa[i * ntiles : (i+1) * ntiles] = np.reshape(IMG, 
+                                                    (ny * nx, nchan, ly, lx))
                 ya, stylea = _forward(net, IMGa)
-                for i in range(min(Lz - k * nimgs, nimgs)):
-                    y = ya[i * ntiles:(i + 1) * ntiles]
+                for i, b in enumerate(inds):
+                    y = ya[i * ntiles : (i + 1) * ntiles]
                     if augment:
                         y = np.reshape(y, (ny, nx, 3, ly, lx))
                         y = transforms.unaugment_tiles(y)
                         y = np.reshape(y, (-1, 3, ly, lx))
                     yfi = transforms.average_tiles(y, ysub, xsub, Ly, Lx)
                     yfi = yfi[:, :imgi.shape[2], :imgi.shape[3]]
-                    yf[k * nimgs + i] = yfi
+                    yf[b] = yfi
                     stylei = stylea[i * ntiles:(i + 1) * ntiles].sum(axis=0)
                     stylei /= (stylei**2).sum()**0.5
                     styles.append(stylei)
@@ -312,13 +334,14 @@ def _run_tiled(net, imgi, batch_size=8, augment=False, bsize=224, tile_overlap=0
         IMG = np.reshape(IMG, (ny * nx, nchan, ly, lx))
         niter = int(np.ceil(IMG.shape[0] / batch_size))
         y = np.zeros((IMG.shape[0], nout, ly, lx))
-        for k in range(niter):
+        iterator =  (trange(niter, file=tqdm_out, mininterval=30) 
+                         if niter > 25 else range(niter))
+        for k in iterator:
             irange = slice(batch_size * k, min(IMG.shape[0],
                                                batch_size * k + batch_size))
             y0, style = _forward(net, IMG[irange])
             y[irange] = y0.reshape(irange.stop - irange.start, y0.shape[-3],
                                    y0.shape[-2], y0.shape[-1])
-            # check size models!
             if k == 0:
                 styles = style.sum(axis=0)
             else:
@@ -375,8 +398,8 @@ def run_3D(net, imgs, batch_size=8, rsz=1.0, anisotropy=None, augment=False, til
         # per image
         core_logger.info("running %s: %d planes of size (%d, %d)" %
                          (sstr[p], shape[0], shape[1], shape[2]))
-        y, style = run_net(net, xsl, batch_size=batch_size, augment=augment, tile=tile, 
-                            bsize=bsize, tile_overlap=tile_overlap)
+        y, style = run_net(net, xsl, batch_size=batch_size, augment=augment, tile=tile,
+                           bsize=bsize, tile_overlap=tile_overlap)
         y = transforms.resize_image(y, shape[1], shape[2])
         yf[p] = y.transpose(ipm[p])
         if progress is not None:

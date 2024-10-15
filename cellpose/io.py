@@ -47,11 +47,10 @@ except:
 
 io_logger = logging.getLogger(__name__)
 
-
-def logger_setup():
-    cp_dir = pathlib.Path.home().joinpath(".cellpose")
+def logger_setup(cp_path=".cellpose", logfile_name="run.log"):
+    cp_dir = pathlib.Path.home().joinpath(cp_path)
     cp_dir.mkdir(exist_ok=True)
-    log_file = cp_dir.joinpath("run.log")
+    log_file = cp_dir.joinpath(logfile_name)
     try:
         log_file.unlink()
     except:
@@ -70,8 +69,7 @@ def logger_setup():
 
 from . import utils, plot, transforms
 
-
-# helper function to check for a path; if it doesn"t exist, make it
+# helper function to check for a path; if it doesn't exist, make it
 def check_dir(path):
     if not os.path.isdir(path):
         os.mkdir(path)
@@ -156,7 +154,7 @@ def imread(filename):
     """
     # ensure that extension check is not case sensitive
     ext = os.path.splitext(filename)[-1].lower()
-    if ext == ".tif" or ext == ".tiff":
+    if ext == ".tif" or ext == ".tiff" or ext == ".flex":
         with tifffile.TiffFile(filename) as tif:
             ltif = len(tif.pages)
             try:
@@ -267,6 +265,7 @@ def imsave(filename, arr):
             arr = cv2.cvtColor(arr, cv2.COLOR_BGR2RGB)
         cv2.imwrite(filename, arr)
 
+
 def get_image_files(folder, mask_filter, imf=None, look_one_level_down=False):
     """
     Finds all images in a folder and its subfolders (if specified) with the given file extensions.
@@ -294,7 +293,7 @@ def get_image_files(folder, mask_filter, imf=None, look_one_level_down=False):
     if look_one_level_down:
         folders = natsorted(glob.glob(os.path.join(folder, "*/")))
     folders.append(folder)
-    exts = [".png", ".jpg", ".jpeg", ".tif", ".tiff", ".dax", ".nd2", ".nrrd"]
+    exts = [".png", ".jpg", ".jpeg", ".tif", ".tiff", ".flex", ".dax", ".nd2", ".nrrd"]
     l0 = 0
     al = 0
     for folder in folders:
@@ -310,7 +309,7 @@ def get_image_files(folder, mask_filter, imf=None, look_one_level_down=False):
         raise ValueError("ERROR: no files in --dir folder ")
     elif l0 == 0:
         raise ValueError(
-            "ERROR: no images in --dir folder with extensions .png, .jpg, .jpeg, .tif, .tiff"
+            "ERROR: no images in --dir folder with extensions .png, .jpg, .jpeg, .tif, .tiff, .flex"
         )
 
     image_names = natsorted(image_names)
@@ -336,7 +335,6 @@ def get_image_files(folder, mask_filter, imf=None, look_one_level_down=False):
             "ERROR: no images in --dir folder without _masks or _flows ending")
 
     return image_names
-
 
 def get_label_files(image_names, mask_filter, imf=None):
     """
@@ -422,7 +420,8 @@ def load_images_labels(tdir, mask_filter="_masks", image_filter=None,
     labels = []
     k = 0
     for n in range(nimg):
-        if os.path.isfile(label_names[n]) or os.path.isfile(flow_names[0]):
+        if (os.path.isfile(label_names[n]) or 
+            (flow_names is not None and os.path.isfile(flow_names[0]))):
             image = imread(image_names[n])
             if label_names is not None:
                 label = imread(label_names[n])
@@ -460,7 +459,6 @@ def load_train_test_data(train_dir, test_dir=None, image_filter=None,
     """
     images, labels, image_names = load_images_labels(train_dir, mask_filter,
                                                      image_filter, look_one_level_down)
-
     # testing data
     test_images, test_labels, test_image_names = None, None, None
     if test_dir is not None:
@@ -469,8 +467,9 @@ def load_train_test_data(train_dir, test_dir=None, image_filter=None,
 
     return images, labels, image_names, test_images, test_labels, test_image_names
 
+
 def masks_flows_to_seg(images, masks, flows, file_names, diams=30., channels=None,
-                        imgs_restore=None, restore_type=None, ratio=1.):
+                       imgs_restore=None, restore_type=None, ratio=1.):
     """Save output of model eval to be loaded in GUI.
 
     Can be list output (run on multiple images) or single output (run on single image).
@@ -496,9 +495,12 @@ def masks_flows_to_seg(images, masks, flows, file_names, diams=30., channels=Non
         if not isinstance(diams, (list, np.ndarray)):
             diams = diams * np.ones(len(masks), np.float32)
         if imgs_restore is None:
-            imgs_restore = [] * len(masks)
-        for k, [image, mask, flow, diam,
-                file_name, img_restore] in enumerate(zip(images, masks, flows, diams, file_names, imgs_restore)):
+            imgs_restore = [None] * len(masks)
+        if isinstance(file_names, str):
+            file_names = [file_names] * len(masks)
+        for k, [image, mask, flow, diam, file_name, img_restore
+               ] in enumerate(zip(images, masks, flows, diams, file_names,
+                                  imgs_restore)):
             channels_img = channels
             if channels_img is not None and len(channels) > 2:
                 channels_img = channels[k]
@@ -536,40 +538,41 @@ def masks_flows_to_seg(images, masks, flows, file_names, diams=30., channels=Non
     outlines = masks * utils.masks_to_outlines(masks)
     base = os.path.splitext(file_names)[0]
 
-    dat = {"outlines":
-                outlines.astype(np.uint16)
-                if outlines.max() < 2**16 - 1 else outlines.astype(np.uint32),
-            "masks":
-                masks.astype(np.uint16)
-                if outlines.max() < 2**16 - 1 else masks.astype(np.uint32),
-            "chan_choose":
-                channels,
-            "ismanual":
-                np.zeros(masks.max(), bool),
-            "filename":
-                file_names,
-            "flows":
-                flowi,
-            "diameter":
-                diams
-            }
+    dat = {
+        "outlines":
+            outlines.astype(np.uint16) if outlines.max() < 2**16 -
+            1 else outlines.astype(np.uint32),
+        "masks":
+            masks.astype(np.uint16) if outlines.max() < 2**16 -
+            1 else masks.astype(np.uint32),
+        "chan_choose":
+            channels,
+        "ismanual":
+            np.zeros(masks.max(), bool),
+        "filename":
+            file_names,
+        "flows":
+            flowi,
+        "diameter":
+            diams
+    }
     if restore_type is not None and imgs_restore is not None:
         dat["restore"] = restore_type
-        dat["ratio"] = ratio 
+        dat["ratio"] = ratio
         dat["img_restore"] = imgs_restore
 
     np.save(base + "_seg.npy", dat)
 
 def save_to_png(images, masks, flows, file_names):
-    """ deprecated (runs io.save_masks with png=True) 
-    
+    """ deprecated (runs io.save_masks with png=True)
+
         does not work for 3D images
-    
+
     """
     save_masks(images, masks, flows, file_names, png=True)
 
 
-def save_rois(masks, file_name):
+def save_rois(masks, file_name, multiprocessing=None):
     """ save masks to .roi files in .zip archive for ImageJ/Fiji
 
     Args:
@@ -579,9 +582,13 @@ def save_rois(masks, file_name):
     Returns:
         None
     """
-    outlines = utils.outlines_list(masks)
-    rois = [ImagejRoi.frompoints(outline) for outline in outlines]
-    file_name = os.path.splitext(file_name)[0] + "_rois.zip"
+    outlines = utils.outlines_list(masks, multiprocessing=multiprocessing)
+    nonempty_outlines = [outline for outline in outlines if len(outline)!=0]
+    if len(outlines)!=len(nonempty_outlines):
+        print(f"empty outlines found, saving {len(nonempty_outlines)} ImageJ ROIs to .zip archive.")
+    rois = [ImagejRoi.frompoints(outline) for outline in nonempty_outlines]
+    file_name = os.path.splitext(file_name)[0] + '_rois.zip'
+
 
     # Delete file if it exists; the roifile lib appends to existing zip files.
     # If the user removed a mask it will still be in the zip file
@@ -591,11 +598,9 @@ def save_rois(masks, file_name):
     roiwrite(file_name, rois)
 
 
-
 def save_masks(images, masks, flows, file_names, png=True, tif=False, channels=[0, 0],
-               suffix="", save_flows=False, save_outlines=False, 
-               dir_above=False, in_folders=False, savedir=None, save_txt=False,
-               save_mpl=False):
+               suffix="", save_flows=False, save_outlines=False, dir_above=False,
+               in_folders=False, savedir=None, save_txt=False, save_mpl=False):
     """ Save masks + nicely plotted segmentation image to png and/or tiff.
 
     Can save masks, flows to different directories, if in_folders is True.
@@ -634,9 +639,8 @@ def save_masks(images, masks, flows, file_names, png=True, tif=False, channels=[
         for image, mask, flow, file_name in zip(images, masks, flows, file_names):
             save_masks(image, mask, flow, file_name, png=png, tif=tif, suffix=suffix,
                        dir_above=dir_above, save_flows=save_flows,
-                       save_outlines=save_outlines, 
-                       savedir=savedir, save_txt=save_txt, in_folders=in_folders,
-                       save_mpl=save_mpl)
+                       save_outlines=save_outlines, savedir=savedir, save_txt=save_txt,
+                       in_folders=in_folders, save_mpl=save_mpl)
         return
 
     if masks.ndim > 2 and not tif:
@@ -744,4 +748,4 @@ def save_masks(images, masks, flows, file_names, png=True, tif=False, channels=[
         imsave(os.path.join(flowdir, basename + "_flows" + suffix + ".tif"),
                (flows[0] * (2**16 - 1)).astype(np.uint16))
         #save full flow data
-        imsave(os.path.join(flowdir, basename + "_dP" + suffix + ".tif"), flows[1])
+        imsave(os.path.join(flowdir, basename + '_dP' + suffix + '.tif'), flows[1]) 

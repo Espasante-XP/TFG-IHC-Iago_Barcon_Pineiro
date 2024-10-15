@@ -24,7 +24,7 @@ MODEL_DIR = pathlib.Path(_MODEL_DIR_ENV) if _MODEL_DIR_ENV else _MODEL_DIR_DEFAU
 
 MODEL_NAMES = [
     "cyto3", "nuclei", "cyto2_cp3", "tissuenet_cp3", "livecell_cp3", "yeast_PhC_cp3",
-    "yeast_BF_cp3", "bact_phase_cp3", "bact_fluor_cp3", "deepbacs_cp3", "cyto2", "cyto",
+    "yeast_BF_cp3", "bact_phase_cp3", "bact_fluor_cp3", "deepbacs_cp3", "cyto2", "cyto", "CPx",
     "transformer_cp3", "neurips_cellpose_default", "neurips_cellpose_transformer",
     "neurips_grayscale_cyto2"
 ]
@@ -35,13 +35,14 @@ normalize_default = {
     "lowhigh": None,
     "percentile": None,
     "normalize": True,
-    "norm3D": False,
+    "norm3D": True,
     "sharpen_radius": 0,
     "smooth_radius": 0,
     "tile_norm_blocksize": 0,
     "tile_norm_smooth3D": 1,
     "invert": False
 }
+
 
 def model_path(model_type, model_index=0):
     torch_str = "torch"
@@ -50,7 +51,8 @@ def model_path(model_type, model_index=0):
     else:
         basename = model_type
     return cache_model_path(basename)
-    
+
+
 def size_model_path(model_type):
     if os.path.exists(model_type):
         return model_type + "_size.npy"
@@ -103,8 +105,8 @@ class Cellpose():
 
     """
 
-    def __init__(self, gpu=False, model_type="cyto3", nchan=2, 
-                device=None, backbone="default"):
+    def __init__(self, gpu=False, model_type="cyto3", nchan=2, device=None,
+                 backbone="default"):
         super(Cellpose, self).__init__()
 
         # assign device (GPU or CPU)
@@ -120,13 +122,14 @@ class Cellpose():
         if nuclear:
             self.diam_mean = 17.
 
-        if model_type in ["cyto", "nuclei", "cyto2", "cyto3"] and nchan!=2:
+        if model_type in ["cyto", "nuclei", "cyto2", "cyto3"] and nchan != 2:
             nchan = 2
-            models_logger.warning(f"cannot set nchan to other value for {model_type} model")
+            models_logger.warning(
+                f"cannot set nchan to other value for {model_type} model")
         self.nchan = nchan
 
         self.cp = CellposeModel(device=self.device, gpu=self.gpu, model_type=model_type,
-                                diam_mean=self.diam_mean, nchan=self.nchan, 
+                                diam_mean=self.diam_mean, nchan=self.nchan,
                                 backbone=self.backbone)
         self.cp.model_type = model_type
 
@@ -136,8 +139,8 @@ class Cellpose():
                             cp_model=self.cp)
         self.sz.model_type = model_type
 
-    def eval(self, x, batch_size=8, channels=[0,0], channel_axis=None, invert=False,
-             normalize=True, diameter=30., do_3D=False, find_masks=True, **kwargs):
+    def eval(self, x, batch_size=8, channels=[0, 0], channel_axis=None, invert=False,
+             normalize=True, diameter=30., do_3D=False, **kwargs):
         """Run cellpose size model and mask model and get masks.
 
         Args:
@@ -233,7 +236,7 @@ class CellposeModel():
     """
 
     def __init__(self, gpu=False, pretrained_model=False, model_type=None,
-                 diam_mean=30., device=None, nchan=2, backbone="default"):
+                 mkldnn=True, diam_mean=30., device=None, nchan=2, backbone="default"):
         """
         Initialize the CellposeModel.
 
@@ -241,6 +244,7 @@ class CellposeModel():
             gpu (bool, optional): Whether or not to save model to GPU, will check if GPU available.
             pretrained_model (str or list of strings, optional): Full path to pretrained cellpose model(s), if None or False, no model loaded.
             model_type (str, optional): Any model that is available in the GUI, use name in GUI e.g. "livecell" (can be user-trained or model zoo).
+            mkldnn (bool, optional): Use MKLDNN for CPU inference, faster but not always supported.
             diam_mean (float, optional): Mean "diameter", 30. is built-in value for "cyto" model; 17. is built-in value for "nuclei" model; if saved in custom model file (cellpose>=2.0) then it will be loaded automatically and overwrite this value.
             device (torch device, optional): Device used for model running / training (torch.device("cuda") or torch.device("cpu")), overrides gpu input, recommended if you want to use a specific GPU (e.g. torch.device("cuda:1")).
             nchan (int, optional): Number of channels to use as input to network, default is 2 (cyto + nuclei) or (nuclei + zeros).
@@ -248,7 +252,7 @@ class CellposeModel():
         self.diam_mean = diam_mean
 
         ### set model path
-        default_model = "cyto3" if backbone=="default" else "transformer_cp3"
+        default_model = "cyto3" if backbone == "default" else "transformer_cp3"
         builtin = False
         use_default = False
         model_strings = get_user_models()
@@ -257,10 +261,10 @@ class CellposeModel():
 
         # check if pretrained_model is builtin or custom user model saved in .cellpose/models
         # if yes, then set to model_type
-        if (pretrained_model and not Path(pretrained_model).exists() and 
-            np.any([pretrained_model == s for s in all_models])):
+        if (pretrained_model and not Path(pretrained_model).exists() and
+                np.any([pretrained_model == s for s in all_models])):
             model_type = pretrained_model
-
+            
         # check if model_type is builtin or custom user model saved in .cellpose/models
         if model_type is not None and np.any([model_type == s for s in all_models]):
             if np.any([model_type == s for s in MODEL_NAMES]):
@@ -269,7 +273,7 @@ class CellposeModel():
             if model_type == "nuclei":
                 self.diam_mean = 17.
             pretrained_model = model_path(model_type)
-        # if model_type is not None and does not exist, use default model 
+        # if model_type is not None and does not exist, use default model
         elif model_type is not None:
             if Path(model_type).exists():
                 pretrained_model = model_type
@@ -280,22 +284,36 @@ class CellposeModel():
         else:
             # if pretrained_model does not exist, use default model
             if pretrained_model and not Path(pretrained_model).exists():
-                models_logger.warning("pretrained_model path does not exist, using default model")
+                models_logger.warning(
+                    "pretrained_model path does not exist, using default model")
                 use_default = True
-            
+            elif pretrained_model:
+                if pretrained_model[-13:] == "nucleitorch_0":
+                    builtin = True
+                    self.diam_mean = 17.
+
         builtin = True if use_default else builtin
-        self.pretrained_model = model_path(default_model) if use_default else pretrained_model
-        
+        self.pretrained_model = model_path(
+            default_model) if use_default else pretrained_model
+
         ### assign model device
         self.mkldnn = None
         if device is None:
             sdevice, gpu = assign_device(use_torch=True, gpu=gpu)
         self.device = device if device is not None else sdevice
         if device is not None:
-            device_gpu = self.device.type == "cuda"
+            if torch.cuda.is_available():
+                device_gpu = self.device.type == "cuda"
+            elif torch.backends.mps.is_available():
+                device_gpu = self.device.type == "mps"
+            else:
+                device_gpu = False
         self.gpu = gpu if device is None else device_gpu
         if not self.gpu:
-            self.mkldnn = check_mkl(True)
+            if mkldnn:
+                self.mkldnn = check_mkl(True)
+            else:
+                self.mkldnn = False
 
         ### create neural network
         self.nchan = nchan
@@ -303,13 +321,14 @@ class CellposeModel():
         nbase = [32, 64, 128, 256]
         self.nbase = [nchan, *nbase]
         self.pretrained_model = pretrained_model
-        if backbone=="default":
+        if backbone == "default":
             self.net = CPnet(self.nbase, self.nclasses, sz=3, mkldnn=self.mkldnn,
                              max_pool=True, diam_mean=diam_mean).to(self.device)
         else:
             from .segformer import Transformer
-            self.net = Transformer(encoder_weights="imagenet" if not self.pretrained_model else None,
-                                     diam_mean=diam_mean).to(self.device)
+            self.net = Transformer(
+                encoder_weights="imagenet" if not self.pretrained_model else None,
+                diam_mean=diam_mean).to(self.device)
 
         ### load model weights
         if self.pretrained_model:
@@ -334,9 +353,9 @@ class CellposeModel():
     def eval(self, x, batch_size=8, resample=True, channels=None, channel_axis=None,
              z_axis=None, normalize=True, invert=False, rescale=None, diameter=None,
              flow_threshold=0.4, cellprob_threshold=0.0, do_3D=False, anisotropy=None,
-             stitch_threshold=0.0, min_size=15, niter=None, augment=False, tile=True,
-             tile_overlap=0.1, bsize=224, interp=True, compute_masks=True,
-             progress=None):
+             stitch_threshold=0.0, min_size=15, max_size_fraction=0.4, niter=None, 
+             augment=False, tile=True, tile_overlap=0.1, bsize=224, 
+             interp=True, compute_masks=True, progress=None):
         """ segment list of images x, or 4D array - Z x nchan x Y x X
 
         Args:
@@ -375,6 +394,8 @@ class CellposeModel():
             anisotropy (float, optional): for 3D segmentation, optional rescaling factor (e.g. set to 2.0 if Z is sampled half as dense as X or Y). Defaults to None.
             stitch_threshold (float, optional): if stitch_threshold>0.0 and not do_3D, masks are stitched in 3D to return volume segmentation. Defaults to 0.0.
             min_size (int, optional): all ROIs below this size, in pixels, will be discarded. Defaults to 15.
+            max_size_fraction (float, optional): max_size_fraction (float, optional): Masks larger than max_size_fraction of
+                total image size are removed. Default is 0.4.
             niter (int, optional): number of iterations for dynamics computation. if None, it is set proportional to the diameter. Defaults to None.
             augment (bool, optional): tiles image with overlapping tiles and flips overlapped regions to augment. Defaults to False.
             tile (bool, optional): tiles image to ensure GPU/CPU memory usage limited (recommended). Defaults to True.
@@ -416,7 +437,8 @@ class CellposeModel():
                     tile_overlap=tile_overlap, bsize=bsize, resample=resample,
                     interp=interp, flow_threshold=flow_threshold,
                     cellprob_threshold=cellprob_threshold, compute_masks=compute_masks,
-                    min_size=min_size, stitch_threshold=stitch_threshold,
+                    min_size=min_size, max_size_fraction=max_size_fraction, 
+                    stitch_threshold=stitch_threshold,
                     progress=progress, niter=niter)
                 masks.append(maski)
                 flows.append(flowi)
@@ -432,8 +454,7 @@ class CellposeModel():
                                          nchan=self.nchan)
             if x.ndim < 4:
                 x = x[np.newaxis, ...]
-            self.batch_size = batch_size
-
+            
             if diameter is not None and diameter > 0:
                 rescale = self.diam_mean / diameter
             elif rescale is None:
@@ -443,18 +464,20 @@ class CellposeModel():
             masks, styles, dP, cellprob, p = self._run_cp(
                 x, compute_masks=compute_masks, normalize=normalize, invert=invert,
                 rescale=rescale, resample=resample, augment=augment, tile=tile,
-                tile_overlap=tile_overlap, bsize=bsize, flow_threshold=flow_threshold,
+                batch_size=batch_size, tile_overlap=tile_overlap, bsize=bsize, flow_threshold=flow_threshold,
                 cellprob_threshold=cellprob_threshold, interp=interp, min_size=min_size,
-                do_3D=do_3D, anisotropy=anisotropy, niter=niter,
+                max_size_fraction=max_size_fraction, do_3D=do_3D, anisotropy=anisotropy, niter=niter,
                 stitch_threshold=stitch_threshold)
 
             flows = [plot.dx_to_circ(dP), dP, cellprob, p]
             return masks, flows, styles
 
     def _run_cp(self, x, compute_masks=True, normalize=True, invert=False, niter=None,
-                rescale=1.0, resample=True, augment=False, tile=True, tile_overlap=0.1,
+                rescale=1.0, resample=True, augment=False, tile=True, 
+                batch_size=8, tile_overlap=0.1,
                 cellprob_threshold=0.0, bsize=224, flow_threshold=0.4, min_size=15,
-                interp=True, anisotropy=1.0, do_3D=False, stitch_threshold=0.0):
+                max_size_fraction=0.4, interp=True, anisotropy=1.0, do_3D=False, 
+                stitch_threshold=0.0):
 
         if isinstance(normalize, dict):
             normalize_params = {**normalize_default, **normalize}
@@ -484,7 +507,8 @@ class CellposeModel():
         if do_3D:
             img = np.asarray(x)
             yf, styles = run_3D(self.net, img, rsz=rescale, anisotropy=anisotropy,
-                                augment=augment, tile=tile, tile_overlap=tile_overlap)
+                                batch_size=batch_size, augment=augment, tile=tile, 
+                                tile_overlap=tile_overlap)
             cellprob = yf[0][-1] + yf[1][-1] + yf[2][-1]
             dP = np.stack(
                 (yf[1][0] + yf[2][0], yf[0][0] + yf[2][1], yf[0][1] + yf[1][1]),
@@ -492,37 +516,19 @@ class CellposeModel():
             del yf
         else:
             tqdm_out = utils.TqdmToLogger(models_logger, level=logging.INFO)
-            iterator = trange(nimg, file=tqdm_out,
-                              mininterval=30) if nimg > 1 else range(nimg)
-            styles = np.zeros((nimg, self.nbase[-1]), np.float32)
+            img = np.asarray(x)
+            if do_normalization:
+                img = transforms.normalize_img(img, **normalize_params)
+            if rescale != 1.0:
+                img = transforms.resize_image(img, rsz=rescale)
+            yf, style = run_net(self.net, img, bsize=bsize, augment=augment,
+                                batch_size=batch_size, tile=tile, 
+                                tile_overlap=tile_overlap)
             if resample:
-                dP = np.zeros((2, nimg, shape[1], shape[2]), np.float32)
-                cellprob = np.zeros((nimg, shape[1], shape[2]), np.float32)
-            else:
-                dP = np.zeros(
-                    (2, nimg, int(shape[1] * rescale), int(shape[2] * rescale)),
-                    np.float32)
-                cellprob = np.zeros(
-                    (nimg, int(shape[1] * rescale), int(shape[2] * rescale)),
-                    np.float32)
-            for i in iterator:
-                img = np.asarray(x[i])
-                if do_normalization:
-                    img = transforms.normalize_img(img, **normalize_params)
-                if rescale != 1.0:
-                    img = transforms.resize_image(img, rsz=rescale)
-                yf, style = run_net(self.net, img, bsize=bsize, augment=augment,
-                                        tile=tile, tile_overlap=tile_overlap)
-                if resample:
-                    yf = transforms.resize_image(yf, shape[1], shape[2])
-
-                cellprob[i] = yf[:, :, 2]
-                dP[:, i] = yf[:, :, :2].transpose((2, 0, 1))
-                if self.nclasses == 4:
-                    if i == 0:
-                        bd = np.zeros_like(cellprob)
-                    bd[i] = yf[:, :, 3]
-                styles[i][:len(style)] = style
+                yf = transforms.resize_image(yf, shape[1], shape[2])
+            dP = np.moveaxis(yf[..., :2], source=-1, destination=0).copy()
+            cellprob = yf[..., 2]
+            styles = style
             del yf, style
         styles = styles.squeeze()
 
@@ -533,12 +539,12 @@ class CellposeModel():
         if compute_masks:
             tic = time.time()
             niter0 = 200 if (do_3D and not resample) else (1 / rescale * 200)
-            niter = niter0 if niter is None or niter==0 else niter
+            niter = niter0 if niter is None or niter == 0 else niter
             if do_3D:
                 masks, p = dynamics.resize_and_compute_masks(
                     dP, cellprob, niter=niter, cellprob_threshold=cellprob_threshold,
                     flow_threshold=flow_threshold, interp=interp, do_3D=do_3D,
-                    min_size=min_size, resize=None,
+                    min_size=min_size, max_size_fraction=max_size_fraction, resize=None,
                     device=self.device if self.gpu else None)
             else:
                 masks, p = [], []
@@ -557,6 +563,7 @@ class CellposeModel():
                         resize=resize,
                         min_size=min_size if stitch_threshold == 0 or nimg == 1 else
                         -1,  # turn off for 3D stitching
+                        max_size_fraction=max_size_fraction,
                         device=self.device if self.gpu else None)
                     masks.append(outputs[0])
                     p.append(outputs[1])
@@ -571,8 +578,9 @@ class CellposeModel():
                     masks = utils.fill_holes_and_remove_small_masks(
                         masks, min_size=min_size)
                 elif nimg > 1:
-                    models_logger.warning("3D stack used, but stitch_threshold=0 and do_3D=False, so masks are made per plane only")
-
+                    models_logger.warning(
+                        "3D stack used, but stitch_threshold=0 and do_3D=False, so masks are made per plane only"
+                    )
 
             flow_time = time.time() - tic
             if nimg > 1:
@@ -583,6 +591,7 @@ class CellposeModel():
         else:
             masks, p = np.zeros(0), np.zeros(0)  #pass back zeros if not compute_masks
         return masks, styles, dP, cellprob, p
+
 
 class SizeModel():
     """ 

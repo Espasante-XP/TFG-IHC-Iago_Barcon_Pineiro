@@ -695,15 +695,16 @@ class MainW(QMainWindow):
         self.modelBoxG.addWidget(self.ModelButtonC, b0, 8, 1, 1)
         self.ModelButtonC.setEnabled(False)
 
-        # compute segmentation with style model
         self.net_names = [
             "nuclei", "cyto2_cp3", "tissuenet_cp3", "livecell_cp3", "yeast_PhC_cp3",
-            "yeast_BF_cp3", "bact_phase_cp3", "bact_fluor_cp3", "deepbacs_cp3"
-        ]
+            "yeast_BF_cp3", "bact_phase_cp3", "bact_fluor_cp3", "deepbacs_cp3",
+            "cyto", "cyto2", "CPx"]
+
         nett = [
             "nuclei", "cellpose (cyto2_cp3)", "tissuenet_cp3", "livecell_cp3",
             "yeast_PhC_cp3", "yeast_BF_cp3", "bact_phase_cp3", "bact_fluor_cp3",
-            "deepbacs_cp3"
+            "deepbacs_cp3", "cyto", "cyto2",
+            "CPx (from Cellpose2)"
         ]
         b0 += 1
         self.ModelChooseB = QComboBox()
@@ -733,32 +734,31 @@ class MainW(QMainWindow):
         self.l0.addWidget(self.denoiseBox, b, 0, 1, 9)
 
         b0 = 0
-        self.denoiseBoxG.addWidget(QLabel("mode:"), b0, 0, 1, 3)
-
+        
         # DENOISING
         self.DenoiseButtons = []
         nett = [
-            "filter image (settings below)",
             "clear restore/filter",
+            "filter image (settings below)",
             "denoise (please set cell diameter first)",
             "deblur (please set cell diameter first)",
             "upsample to 30. diameter (cyto3) or 17. diameter (nuclei) (please set cell diameter first) (disabled in 3D)",
+            "one-click model trained to denoise+deblur+upsample (please set cell diameter first)"
         ]
-        self.denoise_text = ["filter", "none", "denoise", "deblur", "upsample"]
+        self.denoise_text = ["none", "filter", "denoise", "deblur", "upsample", "one-click"]
         self.restore = None
         self.ratio = 1.
-        jj = 3
+        jj = 0
+        w = 3
         for j in range(len(self.denoise_text)):
             self.DenoiseButtons.append(
                 guiparts.DenoiseButton(self, self.denoise_text[j]))
-            w = 3
             self.denoiseBoxG.addWidget(self.DenoiseButtons[-1], b0, jj, 1, w)
-            jj += w
             self.DenoiseButtons[-1].setFixedWidth(75)
             self.DenoiseButtons[-1].setToolTip(nett[j])
             self.DenoiseButtons[-1].setFont(self.medfont)
-            b0 += 1 if j == 1 else 0
-            jj = 0 if j == 1 else jj
+            b0 += 1 if j%2==1 else 0
+            jj = 0 if j%2==1 else jj + w
 
         # b0+=1
         self.save_norm = QCheckBox("save restored/filtered image")
@@ -767,22 +767,23 @@ class MainW(QMainWindow):
         self.save_norm.setChecked(True)
         # self.denoiseBoxG.addWidget(self.save_norm, b0, 0, 1, 8)
 
-        b0 += 1
-        label = QLabel("Cellpose3 model type:")
+        b0 -= 3
+        label = QLabel("restore-dataset:")
         label.setToolTip(
-            "choose model type and click [denoise], [deblur], or [upsample]")
+            "choose dataset and click [denoise], [deblur], [upsample], or [one-click]")
         label.setFont(self.medfont)
-        self.denoiseBoxG.addWidget(label, b0, 0, 1, 4)
+        self.denoiseBoxG.addWidget(label, b0, 6, 1, 3)
 
+        b0 += 1
         self.DenoiseChoose = QComboBox()
         self.DenoiseChoose.setFont(self.medfont)
-        self.DenoiseChoose.addItems(["one-click", "nuclei"])
-        self.DenoiseChoose.setFixedWidth(100)
+        self.DenoiseChoose.addItems(["cyto3", "cyto2", "nuclei"])
+        self.DenoiseChoose.setFixedWidth(85)
         tipstr = "choose model type and click [denoise], [deblur], or [upsample]"
         self.DenoiseChoose.setToolTip(tipstr)
-        self.denoiseBoxG.addWidget(self.DenoiseChoose, b0, 5, 1, 4)
+        self.denoiseBoxG.addWidget(self.DenoiseChoose, b0, 6, 1, 3)
 
-        b0 += 1
+        b0 += 2
         # FILTERING
         self.filtBox = QCollapsible("custom filter settings")
         self.filtBox._toggle_btn.setFont(self.medfont)
@@ -824,6 +825,7 @@ class MainW(QMainWindow):
         b0 += 3
         self.norm3D_cb = QCheckBox("norm3D")
         self.norm3D_cb.setFont(self.medfont)
+        self.norm3D_cb.setChecked(True)
         self.norm3D_cb.setToolTip("run same normalization across planes")
         self.filtBoxG.addWidget(self.norm3D_cb, b0, 0, 1, 3)
 
@@ -1018,7 +1020,7 @@ class MainW(QMainWindow):
         for i in range(len(self.DenoiseButtons)):
             self.DenoiseButtons[i].setEnabled(True)
         if self.load_3D:
-            self.DenoiseButtons[-1].setEnabled(False)
+            self.DenoiseButtons[-2].setEnabled(False)
         self.ModelButtonB.setEnabled(True)
         self.SizeButton.setEnabled(True)
         self.newmodel.setEnabled(True)
@@ -1233,7 +1235,6 @@ class MainW(QMainWindow):
         self.ViewDropDown.model().item(self.ViewDropDown.count() - 1).setEnabled(False)
         self.delete_restore()
 
-        self.BrushChoose.setCurrentIndex(1)
         self.clear_all()
 
         #self.update_plot()
@@ -1669,7 +1670,7 @@ class MainW(QMainWindow):
     def update_layer(self):
         if self.masksOn or self.outlinesOn:
             #self.draw_layer()
-            self.layer.setImage(self.layerz, autoLevels=False)    
+            self.layer.setImage(self.layerz, autoLevels=False)
         self.update_roi_count()
         self.win.show()
         self.show()
@@ -1851,9 +1852,8 @@ class MainW(QMainWindow):
         self.layerz = np.zeros((self.Ly, self.Lx, 4), np.uint8)
         if self.masksOn:
             self.layerz[..., :3] = self.cellcolors[self.cellpix[self.currentZ], :]
-            self.layerz[...,
-                        3] = self.opacity * (self.cellpix[self.currentZ] > 0).astype(
-                            np.uint8)
+            self.layerz[..., 3] = self.opacity * (self.cellpix[self.currentZ]
+                                                  > 0).astype(np.uint8)
             if self.selected > 0:
                 self.layerz[self.cellpix[self.currentZ] == self.selected] = np.array(
                     [255, 255, 255, self.opacity])
@@ -1943,12 +1943,13 @@ class MainW(QMainWindow):
         ]
         self.check_percentile_params(percentile)
         normalize_params = {"percentile": percentile}
+        norm3D = self.norm3D_cb.isChecked()
+        normalize_params["norm3D"] = norm3D
         if self.restore == "filter":
             sharpen = float(self.filt_edits[0].text())
             smooth = float(self.filt_edits[1].text())
             tile_norm = float(self.filt_edits[2].text())
             smooth3D = float(self.filt_edits[3].text())
-            norm3D = self.norm3D_cb.isChecked()
             invert = self.invert_cb.isChecked()
             out = self.check_filter_params(sharpen, smooth, tile_norm, smooth3D, norm3D,
                                            invert)
@@ -1957,9 +1958,8 @@ class MainW(QMainWindow):
             normalize_params["smooth_radius"] = smooth
             normalize_params["tile_norm_blocksize"] = tile_norm
             normalize_params["tile_norm_smooth3D"] = smooth3D
-            normalize_params["norm3D"] = norm3D
             normalize_params["invert"] = invert
-        
+
         from cellpose.models import normalize_default
         normalize_params = {**normalize_default, **normalize_params}
 
@@ -2170,34 +2170,34 @@ class MainW(QMainWindow):
         save_path = os.path.dirname(self.filename)
 
         print("GUI_INFO: name of new model: " + self.training_params["model_name"])
-        self.new_model_path = train.train_seg(
+        self.new_model_path, train_losses = train.train_seg(
             self.model.net, train_data=self.train_data, train_labels=self.train_labels,
             channels=self.channels, normalize=normalize_params, min_train_masks=0,
-            save_path=save_path, nimg_per_epoch=8, SGD=True,
+            save_path=save_path, nimg_per_epoch=max(8, len(self.train_data)), SGD=True,
             learning_rate=self.training_params["learning_rate"],
             weight_decay=self.training_params["weight_decay"],
             n_epochs=self.training_params["n_epochs"],
-            model_name=self.training_params["model_name"])
-        diam_labels = self.model.diam_labels  #.copy()
+            model_name=self.training_params["model_name"])[:2]
+        # save train losses
+        np.save(str(self.new_model_path) + "_train_losses.npy", train_losses)
         # run model on next image
-        io._add_model(self, self.new_model_path, load_model=False)
+        io._add_model(self, self.new_model_path)
+        diam_labels = self.model.net.diam_labels.item()  #.copy()
         self.new_model_ind = len(self.model_strings)
         self.autorun = True
-        if self.autorun:
-            channels = self.channels.copy()
-            self.clear_all()
-            # keep same channels
-            self.ChannelChoose[0].setCurrentIndex(channels[0])
-            self.ChannelChoose[1].setCurrentIndex(channels[1])
-            self.diameter = diam_labels
-            self.Diameter.setText("%0.2f" % self.diameter)
-            self.logger.info(
-                f">>>> diameter set to diam_labels ( = {diam_labels: 0.3f} )")
-            self.restore = restore
-            self.set_normalize_params(normalize_params)
-            self.get_next_image(load_seg=True)
+        channels = self.channels.copy()
+        self.clear_all()
+        # keep same channels
+        self.ChannelChoose[0].setCurrentIndex(channels[0])
+        self.ChannelChoose[1].setCurrentIndex(channels[1])
+        self.diameter = diam_labels
+        self.Diameter.setText("%0.2f" % self.diameter)
+        self.logger.info(f">>>> diameter set to diam_labels ( = {diam_labels: 0.3f} )")
+        self.restore = restore
+        self.set_normalize_params(normalize_params)
+        self.get_next_image(load_seg=True)
 
-            self.compute_segmentation(custom=True)
+        self.compute_segmentation(custom=True)
         self.logger.info(
             f"!!! computed masks for {os.path.split(self.filename)[1]} from new model !!!"
         )
@@ -2216,7 +2216,7 @@ class MainW(QMainWindow):
                         self.DenoiseChoose.setCurrentIndex(1)
                 if "upsample" in self.restore:
                     i = self.DenoiseChoose.currentIndex()
-                    diam_up = 30. if i == 0 else 17.
+                    diam_up = 30. if i==0 or i==1 else 17.
                     print(diam_up, self.ratio)
                     self.Diameter.setText(str(diam_up / self.ratio))
                 self.compute_denoise_model(model_type=model_type)
@@ -2265,18 +2265,18 @@ class MainW(QMainWindow):
 
     def compute_denoise_model(self, model_type=None):
         self.progress.setValue(0)
-        if 1:
+        try:
             tic = time.time()
-            nstr = "cyto3" if self.DenoiseChoose.currentText(
-            ) == "one-click" else "nuclei"
-            print(model_type)
+            nstr = self.DenoiseChoose.currentText()
+            nstr.replace("-", "")
             self.clear_restore()
             model_name = model_type + "_" + nstr
+            print(model_name)
             # denoising model
             self.denoise_model = denoise.DenoiseModel(gpu=self.useGPU.isChecked(),
                                                       model_type=model_name)
             self.progress.setValue(10)
-            diam_up = 30. if "cyto3" in model_name else 17.
+            diam_up = 30. if "cyto" in model_name else 17.
 
             # params
             channels = self.get_channels()
@@ -2314,6 +2314,7 @@ class MainW(QMainWindow):
             else:
                 self.Lyr, self.Lxr = self.Ly, self.Lx
                 self.Ly0, self.Lx0 = self.Ly, self.Lx
+                diam_up = self.diameter
 
             img_norm = self.denoise_model.eval(data, channels=channels, z_axis=0,
                                                channel_axis=3, diameter=self.diameter,
@@ -2392,16 +2393,17 @@ class MainW(QMainWindow):
 
             self.update_plot()
 
-        #except Exception as e:
-        #    print("ERROR: %s"%e)
+        except Exception as e:
+            print("ERROR: %s" % e)
 
-    def compute_segmentation(self, custom=False, model_name=None):
+    def compute_segmentation(self, custom=False, model_name=None, load_model=True):
         self.progress.setValue(0)
-        if 1:
+        try:
             tic = time.time()
             self.clear_all()
             self.flows = [[], [], []]
-            self.initialize_model(model_name=model_name, custom=custom)
+            if load_model:
+                self.initialize_model(model_name=model_name, custom=custom)
             self.progress.setValue(10)
             do_3D = self.load_3D
             stitch_threshold = float(self.stitch_threshold.text()) if not isinstance(
@@ -2419,17 +2421,17 @@ class MainW(QMainWindow):
             niter = None if niter == 0 else niter
             normalize_params = self.get_normalize_params()
             print(normalize_params)
-            if 1:
+            try:
                 masks, flows = self.model.eval(
                     data, channels=channels, diameter=self.diameter,
                     cellprob_threshold=cellprob_threshold,
                     flow_threshold=flow_threshold, do_3D=do_3D, niter=niter,
                     normalize=normalize_params, stitch_threshold=stitch_threshold,
                     progress=self.progress)[:2]
-            # except Exception as e:
-            #     print("NET ERROR: %s"%e)
-            #     self.progress.setValue(0)
-            #     return
+            except Exception as e:
+                print("NET ERROR: %s" % e)
+                self.progress.setValue(0)
+                return
 
             self.progress.setValue(75)
 
@@ -2472,11 +2474,11 @@ class MainW(QMainWindow):
             self.masksOn = True
             self.MCheckBox.setChecked(True)
             self.progress.setValue(100)
-            if self.restore != "filter":
+            if self.restore != "filter" and self.restore is not None:
                 self.compute_saturation()
             if not do_3D and not stitch_threshold > 0:
                 self.recompute_masks = True
             else:
                 self.recompute_masks = False
-        # except Exception as e:
-        #     print("ERROR: %s"%e)
+        except Exception as e:
+            print("ERROR: %s" % e)

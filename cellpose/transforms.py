@@ -2,18 +2,16 @@
 Copyright © 2023 Howard Hughes Medical Institute, Authored by Carsen Stringer and Marius Pachitariu.
 """
 
-import numpy as np
-import warnings
-import cv2
-import torch
-from torch.fft import fft2, ifft2, fftshift
-from scipy.ndimage import gaussian_filter1d
-
 import logging
+import warnings
+
+import cv2
+import numpy as np
+import torch
+from scipy.ndimage import gaussian_filter1d
+from torch.fft import fft2, fftshift, ifft2
 
 transforms_logger = logging.getLogger(__name__)
-
-from . import dynamics, utils
 
 
 def _taper_mask(ly=224, lx=224, sig=7.5):
@@ -37,6 +35,7 @@ def _taper_mask(ly=224, lx=224, sig=7.5):
     mask = mask[bsize // 2 - ly // 2:bsize // 2 + ly // 2 + ly % 2,
                 bsize // 2 - lx // 2:bsize // 2 + lx // 2 + lx % 2]
     return mask
+
 
 def unaugment_tiles(y):
     """Reverse test-time augmentations for averaging (includes flipping of flowsY and flowsX).
@@ -115,6 +114,7 @@ def make_tiles(imgi, bsize=224, augment=False, tile_overlap=0.1):
         if Lx < bsize:
             imgi = np.concatenate((imgi, np.zeros((nchan, Ly, bsize - Lx))), axis=2)
         Ly, Lx = imgi.shape[-2:]
+        
         # tiles overlap by half of tile size
         ny = max(2, int(np.ceil(2. * Ly / bsize)))
         nx = max(2, int(np.ceil(2. * Lx / bsize)))
@@ -392,13 +392,13 @@ def move_min_dim(img, force=False):
 
     Args:
         img (ndarray): The input image.
-        force (bool, optional): If True, the minimum dimension will always be moved. 
+        force (bool, optional): If True, the minimum dimension will always be moved.
             Defaults to False.
 
     Returns:
         ndarray: The image with the minimum dimension moved to the last axis as channels.
     """
-    if len(img.shape) > 2:  
+    if len(img.shape) > 2:
         min_dim = min(img.shape)
         if min_dim < 10 or force:
             if img.shape[-1] == min_dim:
@@ -437,7 +437,7 @@ def update_axis(m_axis, to_squeeze, ndim):
 
 
 def convert_image(x, channels, channel_axis=None, z_axis=None, do_3D=False, nchan=2):
-    """Converts the image to have the z-axis first, channels last, and normalized intensities.
+    """Converts the image to have the z-axis first, channels last.
 
     Args:
         x (numpy.ndarray or torch.Tensor): The input image.
@@ -468,9 +468,9 @@ def convert_image(x, channels, channel_axis=None, z_axis=None, do_3D=False, ncha
         if len(to_squeeze) > 0:
             channel_axis = update_axis(
                 channel_axis, to_squeeze,
-                x.ndim) if channel_axis is not None else channel_axis
+                x.ndim) if channel_axis is not None else None
             z_axis = update_axis(z_axis, to_squeeze,
-                                 x.ndim) if z_axis is not None else z_axis
+                                 x.ndim) if z_axis is not None else None
         x = x.squeeze()
 
     # put z axis first
@@ -479,6 +479,18 @@ def convert_image(x, channels, channel_axis=None, z_axis=None, do_3D=False, ncha
         if channel_axis is not None:
             channel_axis += 1
         z_axis = 0
+    elif z_axis is None and x.ndim > 2 and channels is not None and min(x.shape) > 5 :
+        # if there are > 5 channels and channels!=None, assume first dimension is z
+        min_dim = min(x.shape)
+        if min_dim != channel_axis:
+            z_axis = (x.shape).index(min_dim)
+            if z_axis != 0:
+                x = move_axis(x, m_axis=z_axis, first=True)
+                if channel_axis is not None:
+                    channel_axis += 1
+            transforms_logger.warning(f"z_axis not specified, assuming it is dim {z_axis}")
+            transforms_logger.warning(f"if this is actually the channel_axis, use 'model.eval(channel_axis={z_axis}, ...)'")
+            z_axis = 0
 
     if z_axis is not None:
         if x.ndim == 3:
@@ -520,7 +532,7 @@ def convert_image(x, channels, channel_axis=None, z_axis=None, do_3D=False, ncha
                 % (nchan, nchan))
             x = x[..., :nchan]
 
-        #if not do_3D and x.ndim > 3:
+        # if not do_3D and x.ndim > 3:
         #    transforms_logger.critical("ERROR: cannot process 4D images in 2D mode")
         #    raise ValueError("ERROR: cannot process 4D images in 2D mode")
 
@@ -536,7 +548,7 @@ def reshape(data, channels=[0, 0], chan_first=False):
 
     Args:
         data (numpy.ndarray): The input data. It should have shape (Z x ) Ly x Lx x nchan
-            if data.ndim==8 and data.shape[0]<8, it is assumed to be nchan x Ly x Lx.
+            if data.ndim==3 and data.shape[0]<8, it is assumed to be nchan x Ly x Lx.
         channels (list of int, optional): The channels to use for reshaping. The first element
             of the list is the channel to segment (0=grayscale, 1=red, 2=green, 3=blue). The
             second element of the list is the optional nuclear channel (0=none, 1=red, 2=green, 3=blue).
@@ -585,21 +597,24 @@ def reshape(data, channels=[0, 0], chan_first=False):
 
 
 def normalize_img(img, normalize=True, norm3D=False, invert=False, lowhigh=None,
-                  percentile=None, sharpen_radius=0, smooth_radius=0,
+                  percentile=(1., 99.), sharpen_radius=0, smooth_radius=0,
                   tile_norm_blocksize=0, tile_norm_smooth3D=1, axis=-1):
-    """Normalize each channel of the image.
+    """Normalize each channel of the image with optional inversion, smoothing, and sharpening.
 
     Args:
         img (ndarray): The input image. It should have at least 3 dimensions.
             If it is 4-dimensional, it assumes the first non-channel axis is the Z dimension.
         normalize (bool, optional): Whether to perform normalization. Defaults to True.
-        norm3D (bool, optional): Whether to normalize in 3D. Defaults to False.
+        norm3D (bool, optional): Whether to normalize in 3D. If True, the entire 3D stack will
+            be normalized per channel. If False, normalization is applied per Z-slice. Defaults to False.
         invert (bool, optional): Whether to invert the image. Useful if cells are dark instead of bright.
             Defaults to False.
-        lowhigh (tuple, optional): The lower and upper bounds for normalization. If provided, it should be a tuple
-            of two values. Defaults to None.
+        lowhigh (tuple or ndarray, optional): The lower and upper bounds for normalization.
+            Can be a tuple of two values (applied to all channels) or an array of shape (nchan, 2)
+            for per-channel normalization. Incompatible with smoothing and sharpening.
+            Defaults to None.
         percentile (tuple, optional): The lower and upper percentiles for normalization. If provided, it should be
-            a tuple of two values. Each value should be between 0 and 100. Defaults to None.
+            a tuple of two values. Each value should be between 0 and 100. Defaults to (1.0, 99.0).
         sharpen_radius (int, optional): The radius for sharpening the image. Defaults to 0.
         smooth_radius (int, optional): The radius for smoothing the image. Defaults to 0.
         tile_norm_blocksize (int, optional): The block size for tile-based normalization. Defaults to 0.
@@ -620,59 +635,122 @@ def normalize_img(img, normalize=True, norm3D=False, invert=False, lowhigh=None,
         transforms_logger.critical(error_message)
         raise ValueError(error_message)
 
-    if lowhigh is not None:
-        assert len(lowhigh) == 2
-        assert lowhigh[1] > lowhigh[0]
-    elif percentile is not None:
-        assert len(percentile) == 2
-        assert percentile[0] >= 0 and percentile[1] > 0
-        assert percentile[0] < 100 and percentile[1] <= 100
-        assert percentile[1] > percentile[0]
-    else:
-        percentile = [1., 99.]
-
     img_norm = img.astype(np.float32)
-    # move channel axis last
-    img_norm = np.moveaxis(img_norm, axis, -1)
+    img_norm = np.moveaxis(img_norm, axis, -1)  # Move channel axis to last
+
     nchan = img_norm.shape[-1]
 
+    # Validate and handle lowhigh bounds
     if lowhigh is not None:
-        for c in range(nchan):
-            img_norm[...,
-                     c] = (img_norm[..., c] - lowhigh[0]) / (lowhigh[1] - lowhigh[0])
-    else:
-        if sharpen_radius > 0 or smooth_radius > 0:
-            img_norm = smooth_sharpen_img(img_norm, sharpen_radius=sharpen_radius,
-                                          smooth_radius=smooth_radius)
-
-        if tile_norm_blocksize > 0:
-            img_norm = normalize99_tile(img_norm, blocksize=tile_norm_blocksize,
-                                        lower=percentile[0], upper=percentile[1],
-                                        smooth3D=tile_norm_smooth3D, norm3D=norm3D)
-        elif normalize:
-            if img_norm.ndim == 3 or norm3D:
-                for c in range(nchan):
-                    img_norm[..., c] = normalize99(img_norm[...,
-                                                            c], lower=percentile[0],
-                                                   upper=percentile[1], copy=False)
-            else:
-                for z in range(img_norm.shape[0]):
-                    for c in range(nchan):
-                        img_norm[z, :, :,
-                                 c] = normalize99(img_norm[z, :, :,
-                                                           c], lower=percentile[0],
-                                                  upper=percentile[1], copy=False)
-        if (tile_norm_blocksize > 0 or normalize) and invert:
-            img_norm[..., c] = -1 * img_norm[..., c] + 1
-        elif invert:
-            error_message = "cannot invert image without normalizing"
+        lowhigh = np.array(lowhigh)
+        if lowhigh.shape == (2,):
+            lowhigh = np.tile(lowhigh, (nchan, 1))  # Expand to per-channel bounds
+        elif lowhigh.shape != (nchan, 2):
+            error_message = "`lowhigh` must have shape (2,) or (nchan, 2)"
             transforms_logger.critical(error_message)
             raise ValueError(error_message)
 
-    # move channel axis back to original position
+    # Validate percentile
+    if percentile is None:
+        percentile = (1.0, 99.0)
+    elif not (0 <= percentile[0] < percentile[1] <= 100):
+        error_message = "Invalid percentile range, should be between 0 and 100"
+        transforms_logger.critical(error_message)
+        raise ValueError(error_message)
+
+    # Apply normalization based on lowhigh or percentile
+    if lowhigh is not None:
+        for c in range(nchan):
+            lower = lowhigh[c, 0]
+            upper = lowhigh[c, 1]
+            img_norm[..., c] = (img_norm[..., c] - lower) / (upper - lower)
+
+    else:
+        # Apply sharpening and smoothing if specified
+        if sharpen_radius > 0 or smooth_radius > 0:
+            img_norm = smooth_sharpen_img(
+                img_norm, sharpen_radius=sharpen_radius, smooth_radius=smooth_radius
+            )
+
+        # Apply tile-based normalization or standard normalization
+        if tile_norm_blocksize > 0:
+            img_norm = normalize99_tile(
+                img_norm,
+                blocksize=tile_norm_blocksize,
+                lower=percentile[0],
+                upper=percentile[1],
+                smooth3D=tile_norm_smooth3D,
+                norm3D=norm3D,
+            )
+        elif normalize:
+            if img_norm.ndim == 3 or norm3D:  # i.e. if YXC, or ZYXC with norm3D=True
+                for c in range(nchan):
+                    img_norm[..., c] = normalize99(
+                        img_norm[..., c],
+                        lower=percentile[0],
+                        upper=percentile[1],
+                        copy=False,
+                    )
+            else:  # i.e. if ZYXC with norm3D=False then per Z-slice
+                for z in range(img_norm.shape[0]):
+                    for c in range(nchan):
+                        img_norm[z, ..., c] = normalize99(
+                            img_norm[z, ..., c],
+                            lower=percentile[0],
+                            upper=percentile[1],
+                            copy=False,
+                        )
+
+    if invert:
+        if lowhigh is not None or tile_norm_blocksize > 0 or normalize:
+            img_norm = 1 - img_norm
+        else:
+            error_message = "Cannot invert image without normalization"
+            transforms_logger.critical(error_message)
+            raise ValueError(error_message)
+
+    # Move channel axis back to the original position
     img_norm = np.moveaxis(img_norm, -1, axis)
 
     return img_norm
+
+def resize_safe(img, Ly, Lx, interpolation=cv2.INTER_LINEAR):
+    """OpenCV resize function does not support uint32.
+
+    This function converts the image to float32 before resizing and then converts it back to uint32. Not safe!
+    References issue: https://github.com/MouseLand/cellpose/issues/937
+
+    Implications:
+    * Runtime: Runtime increases by 5x-50x due to type casting. However, with resizing being very efficient, this is not
+    a big issue. A 10,000x10,000 image takes 0.47s instead of 0.016s to cast and resize on 32 cores on GPU.
+    * Memory: However, memory usage increases. Not tested by how much.
+
+    Args:
+        img (ndarray): Image of size [Ly x Lx].
+        Ly (int): Desired height of the resized image.
+        Lx (int): Desired width of the resized image.
+        interpolation (int, optional): OpenCV interpolation method. Defaults to cv2.INTER_LINEAR.
+
+    Returns:
+        ndarray: Resized image of size [Ly x Lx].
+
+    """
+
+    # cast image
+    cast = img.dtype == np.uint32
+    if cast:
+        img = img.astype(np.float32)
+
+    # resize
+    img = cv2.resize(img, (Lx, Ly), interpolation=interpolation)
+
+    # cast back
+    if cast:
+        transforms_logger.warning("resizing image from uint32 to float32 and back to uint32")
+        img = img.round().astype(np.uint32)
+
+    return img
+
 
 def resize_image(img0, Ly=None, Lx=None, rsz=None, interpolation=cv2.INTER_LINEAR,
                  no_channels=False):
@@ -684,7 +762,7 @@ def resize_image(img0, Ly=None, Lx=None, rsz=None, interpolation=cv2.INTER_LINEA
         Lx (int, optional): Desired width of the resized image. Defaults to None.
         rsz (float, optional): Resize coefficient(s) for the image. If Ly is None, rsz is used. Defaults to None.
         interpolation (int, optional): OpenCV interpolation method. Defaults to cv2.INTER_LINEAR.
-        no_channels (bool, optional): Flag indicating whether to treat the third dimension as a channel. 
+        no_channels (bool, optional): Flag indicating whether to treat the third dimension as a channel.
             Defaults to False.
 
     Returns:
@@ -721,13 +799,14 @@ def resize_image(img0, Ly=None, Lx=None, rsz=None, interpolation=cv2.INTER_LINEA
         else:
             imgs = np.zeros((img0.shape[0], Ly, Lx, img0.shape[-1]), np.float32)
         for i, img in enumerate(img0):
-            imgs[i] = cv2.resize(img, (Lx, Ly), interpolation=interpolation)
+            imgi = resize_safe(img, Ly, Lx, interpolation=interpolation)
+            imgs[i] = imgi if imgi.ndim > 2 or no_channels else imgi[..., np.newaxis]
     else:
-        imgs = cv2.resize(img0, (Lx, Ly), interpolation=interpolation)
+        imgs = resize_safe(img0, Ly, Lx, interpolation=interpolation)
     return imgs
 
 
-def pad_image_ND(img0, div=16, extra=1, min_size=None):
+def pad_image_ND(img0, div=16, extra=1, min_size=None, zpad=False):
     """Pad image for test-time so that its dimensions are a multiple of 16 (2D or 3D).
 
     Args:
@@ -736,8 +815,8 @@ def pad_image_ND(img0, div=16, extra=1, min_size=None):
         extra (int, optional): Extra padding. Defaults to 1.
         min_size (tuple, optional): Minimum size of the image. Defaults to None.
 
-    Returns:   
-        tuple containing 
+    Returns:
+        tuple containing
             - I (ndarray): Padded image.
             - ysub (ndarray): Y range of pixels in the padded image corresponding to img0.
             - xsub (ndarray): X range of pixels in the padded image corresponding to img0.
@@ -756,7 +835,13 @@ def pad_image_ND(img0, div=16, extra=1, min_size=None):
     ypad2 = extra * div // 2 + Lpad - Lpad // 2
 
     if img0.ndim > 3:
-        pads = np.array([[0, 0], [0, 0], [xpad1, xpad2], [ypad1, ypad2]])
+        if zpad:
+            Lpad = int(div * np.ceil(img0.shape[-3] / div) - img0.shape[-3])
+            zpad1 = extra * div // 2 + Lpad // 2
+            zpad2 = extra * div // 2 + Lpad - Lpad // 2
+        else:
+            zpad1, zpad2 = 0, 0
+        pads = np.array([[0, 0], [zpad1, zpad2], [xpad1, xpad2], [ypad1, ypad2]])
     else:
         pads = np.array([[0, 0], [xpad1, xpad2], [ypad1, ypad2]])
 
@@ -765,8 +850,11 @@ def pad_image_ND(img0, div=16, extra=1, min_size=None):
     Ly, Lx = img0.shape[-2:]
     ysub = np.arange(xpad1, xpad1 + Ly)
     xsub = np.arange(ypad1, ypad1 + Lx)
-
-    return I, ysub, xsub
+    if zpad:
+        zsub = np.arange(zpad1, zpad1 + img0.shape[-3])
+        return I, ysub, xsub, zsub
+    else:
+        return I, ysub, xsub
 
 
 def random_rotate_and_resize(X, Y=None, scale_range=1., xy=(224, 224), do_3D=False,
@@ -824,7 +912,7 @@ def random_rotate_and_resize(X, Y=None, scale_range=1., xy=(224, 224), do_3D=Fal
             # generate random augmentation parameters
             flip = np.random.rand() > .5
             theta = np.random.rand() * np.pi * 2 if rotate else 0.
-            scale[n] = (1 - scale_range / 2) + scale_range * np.random.rand()
+            scale[n] =  (1 - scale_range / 2) + scale_range * np.random.rand()
             if rescale is not None:
                 scale[n] *= 1. / rescale[n]
             dxy = np.maximum(0, np.array([Lx * scale[n] - xy[1],
