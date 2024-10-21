@@ -6,3 +6,6 @@ Imagenes para entrenamiento/
 Imagenes_para_entrenamiento/
 **/*.npy
 __pycache__/
+*.png
+*.jpg
+python/*.json
