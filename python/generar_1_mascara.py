@@ -27,14 +27,14 @@ from PIL import Image
   #      'http://www.cellpose.org/static/images/img05.png']
 
 #files = ['./CellPose_test/test/000_img.png']
-files = ['./Imagenes_para_entrenamiento/IL6_1/Image_1033.jpg']
+#files = ['./Imagenes_para_entrenamiento/IL6_1/Image_1033.jpg']
 
 
 imagenes = []
 
 ruta_carpeta = '../Imagenes_para_entrenamiento/IL6_1'   #./Imagenes_para_entrenamiento/IL6_1
 
-#C:\Users\iagob\OneDrive\Escritorio\Trabajo_TFG_local\TFG\Trabajo_TFG_actual\Imagenes para entrenamiento\IL6_1
+#C:\Users\iagob\OneDrive\Escritorio\Trabajo_TFG_local\TFG\Trabajo_TFG_actual\Imagenes_para_entrenamiento\IL6_1
 
 for nombre_archivo in os.listdir(ruta_carpeta):
     # Asegúrate de poner aquí todos los formatos que quieras cargar
@@ -52,7 +52,7 @@ for nombre_archivo in os.listdir(ruta_carpeta):
 Creo que necesito cambiar todas las \ por / en las rutas de todas las imágenes porque si no me da un error.
 """
 
-img2 = io.imread(imagenes[2])
+img2 = io.imread(imagenes[1])
 
 plt.figure(figsize=(2,2))
 plt.imshow(img2)
@@ -75,9 +75,9 @@ channels = [[0,0]] #, [0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0
     
 #for filename in imagenes:
 
-filename = imagenes[2]
+filename = imagenes[2] #Pongo [2] por poner, es la imagen Image_1031.jpg
 
-img2 = io.imread(imagenes[2]) #Pongo [2] por poner, es la imagen Image_1031.jpg
+img2 = io.imread(filename) 
 print(filename)
 
 #import time
@@ -88,40 +88,69 @@ chan = channels[0]
 
 masks, flows, styles, diams = model.eval(img2, diameter=None, channels=chan)
 
+print("Tipo masks = ")
+print(type(masks))
+print("Shape de masks = ")
+print(masks.shape)
+
+print("Tipo flows = ")
+print(type(flows))
+#print("Shape de flows = ")
+#print(flows.shape)
+
+print("Tipo styles = ")
+print(type(styles))
+print("Shape de styles = ")
+print(styles.shape)
+
+print("Tipo diams = ")
+print(type(diams))
+print("Shape de diams = ")
+print(diams.shape)
+
+print("Tipo img2 = ")
+print(type(img2))
+print("Shape de img2 = ")
+print(img2.shape)
+
+"""
+textFile = "example.txt"
+fileName, _, extension = textFile.partition(".")
+print(fileName)  # Output: example
+print(extension)  # Output: txt
+
+
 # save results so you can load in gui
-io.masks_flows_to_seg(img2, masks, flows, filename, channels=chan, diams=diams)
+#io.masks_flows_to_seg(img2, masks, flows, filename, channels=chan, diams=diams) #No vale
+np.save(filename, masks, allow_pickle=True)
+
+#numpy.save(file, arr, allow_pickle=True)
 
 # save results as png
-io.save_to_png(img2, masks, flows, filename)
-
+#io.save_to_png(img2, masks, flows, filename) #No vale
+#Este es el que será generate_seg_mask
 """
-def visualize_seg_mask(image: np.ndarray, mask: np.ndarray):
-   color_seg = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
-   palette = np.array(utils.create_ade20k_label_colormap()) #Revisar, creo que no está bien
-   for label, color in enumerate(palette):
-       color_seg[mask == label, :] = color
-   color_seg = color_seg[..., ::-1]  # convert to BGR
+from generate_seg_mask import obtener_izquierda_delimitador
 
-   img = np.array(image) * 0.5 + color_seg * 0.5  # plot the image with the segmentation map
-   img = img.astype(np.uint8)
+delim = "."
+nombreArchivo = obtener_izquierda_delimitador(filename, delim)
 
-   plt.figure(figsize=(15, 10))
-   plt.imshow(img)
-   plt.axis("off")
-   plt.show()
+np.save(nombreArchivo, masks, allow_pickle=True)
+
+urlMascara = nombreArchivo + "_mask.png"
+
+print("Tipo de dato y valor de urlMascara = ")
+print(type(urlMascara))
+print(urlMascara)
+
+from generate_seg_mask import generate_seg_mask
+
+generate_seg_mask(img2, masks, urlMascara)
+#visualize_seg_mask(imagen_mascara, mascara)
 
 
-   ruta_carpeta = 'C:/Users/iagob/OneDrive/Escritorio/Trabajo_TFG_local/TFG/Trabajo_TFG_actual/Imagenes para entrenamiento/IL6_1'
+#Tengo que implementar las métricas
 
-
-imagen_mascara = 'C:/Users/iagob/OneDrive/Escritorio/Trabajo_TFG_local/TFG/Trabajo_TFG_actual/Imagenes para entrenamiento/IL6_1/Image_1034_cp_masks.png'
-
-archivo_mascara = 'C:/Users/iagob/OneDrive/Escritorio/Trabajo_TFG_local/TFG/Trabajo_TFG_actual/Imagenes para entrenamiento/IL6_1/Image_1034_seg.npy'
-
-import visualize_seg_mask
-
-visualize_seg_mask(imagen_mascara, archivo_mascara)
-"""
    
 # DISPLAY RESULTS
 from cellpose import plot
