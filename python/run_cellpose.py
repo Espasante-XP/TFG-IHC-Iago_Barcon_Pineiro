@@ -214,13 +214,20 @@ print(valores_parametros_modelo[nombre_diameter])
 
 texto_valor_diameter = valores_parametros_modelo[nombre_diameter]
 
-valor_diameter = int(texto_valor_diameter)
+if(texto_valor_diameter.isdigit()):
+    valor_diameter = int(texto_valor_diameter)
+elif (texto_valor_diameter.isalpha() and texto_valor_diameter == "None"):
+    valor_diameter = None
+else:
+    print("Error, el valor introducido enpara la variable diameter no es válido")
+    exit()
 
 from generate_seg_mask import obtener_izquierda_delimitador
 from generate_seg_mask import generate_seg_mask
 
 masks_pred = []
 
+indice = 0
 for filename in imagenes:
     img2 = io.imread(filename)  # Cambié img por img2
     
@@ -241,6 +248,8 @@ for filename in imagenes:
     urlMascara = nombreArchivo + "_mask.png"
 
     generate_seg_mask(img2, masks, urlMascara)
+    print(f"Se ha generado la máscara {indice}")
+    indice = indice + 1
 
 print("\n")
 print("Ha acabado la parte de generación de máscaras del modelo")
@@ -257,15 +266,6 @@ def resize_image(image_array, max_size=512):
     resized_image_array = np.array(img)
     return resized_image_array
 
-
-resized_masks_true = []
-resized_masks_pred = []
-
-for index in range(0, len(binaryMasks)):
-    aux = resize_image(binaryMasks[index], 150) # Con 128 funciona pero los valores son una puta mierda
-    resized_masks_true.append(aux) # Con 200 funciona pero me llega la RAM al límite
-    aux = resize_image(masks_pred[index], 150) 
-    resized_masks_pred.append(aux) 
 
 from cellpose.metrics import aggregated_jaccard_index
 
@@ -295,7 +295,7 @@ prueba_lista = []
 
 prueba_lista.append(1)
 
-prueba_lista.append(2)
+#prueba_lista.append(2)
 
 #prueba_lista.append(4) #Con este tengo que tener los tamaños de las imágenes de 200x200 y la RAM está al límite
 
@@ -305,22 +305,42 @@ prueba_lista.append(2)
 
 #precision, recall, fscore = boundary_scores(resized_masks_true, resized_masks_pred, prueba_lista)
 
+
+
+resized_masks_true = []
+resized_masks_pred = []
+
+for index in range(0, len(binaryMasks)):
+    aux = resize_image(binaryMasks[index], 275) # Con 128 funciona pero los valores son una puta mierda, si hay 4 en boundary_scores
+    resized_masks_true.append(aux) # Con 200 funciona pero me llega la RAM al límite, si hay 4 en boundary_scores
+    aux = resize_image(masks_pred[index], 275) # Con 300 funciona parece que bien, aunque si hay algo más le cuesta a la memoria
+    resized_masks_pred.append(aux) 
+
+
+import gc
+
+gc.collect() # Forzar la recolección de basura
+
+
 precision = []
 recall = []
 fscore = []
 
 #Bucle para generar las listas de resultados de las máscaras de la función boundary_scores
 for index in range(0, len(resized_masks_true)):
-     #Si no usas una lista parece que va mal
+    #Si no usas una lista parece que va mal
     true_list_aux = []
     true_list_aux.append(resized_masks_true[index])
     pred_list_aux = []
     pred_list_aux.append(resized_masks_pred[index])
+    gc.collect() # Forzar la recolección de basura
     aux1, aux2, aux3 = boundary_scores(true_list_aux, pred_list_aux, prueba_lista)
     #precision, recall, fscore = boundary_scores(resized_masks_true, resized_masks_pred, prueba_lista)
     precision.append(aux1)
     recall.append(aux2)
     fscore.append(aux3)
+    print(f"ha acabado la evaluación de la máscara {index}")
+    gc.collect() # Forzar la recolección de basura
 
 
 #Tengo que hacer el bucle para pillar con las anotaciones el nombre de la imagen, quitarle el .jpg
@@ -382,33 +402,7 @@ print("\n")
 print("Se han creado todos los archivos JSON")
 print("\n")
 
-
-"""
-import json
-#tengo que tener abierto el archivo, es decir, el archivo debe existir para poder guardarlo, mirar como hacer 
-# https://pythones.net/diccionarios-en-python/
-
-data = {}
-
-# Abrir (o crear) un archivo JSON en modo de escritura
-with open('Image_1029diamerter300.json', 'w') as file:
-    # Escribir el diccionario vacío en el archivo
-    json.dump(data, file)
-
-print("Archivo JSON vacío creado exitosamente.")
-
-data['jaccard'] = resultados_jaccard[0]
-
-data_serializable = {k: v.tolist() if isinstance(v, np.ndarray) else v for k, v in data.items()}
-
-with open('Image_1029diamerter300.json', 'w') as file:
-    # Escribir el diccionario vacío en el archivo
-    json.dump(data_serializable, file)
-
-print("AL archivo JSON se le han agregado datos")
-
-"""
-
+exit()
 
 """
 print('Mask = ')
