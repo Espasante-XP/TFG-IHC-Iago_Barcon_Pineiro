@@ -1,7 +1,13 @@
 {
-    "diameter":"None",
-    "min_size":"15"
 
+    "diameter":"300",
+    "min_size":"15",
+    "normalize":"True",
+    "niter":"None",
+    "tile_overlap":"0.1",
+    "flow_threshold":"0.4",
+    "cellprob_threshold":"0.0",
+    "stitch_threshold":"0.0"
 
 
 }
