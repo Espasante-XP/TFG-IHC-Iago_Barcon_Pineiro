@@ -1,6 +1,6 @@
 {
 
-    "diameter":"300",
+    "diameter":"350",
     "min_size":"15",
     "normalize":"True",
     "niter":"None",
