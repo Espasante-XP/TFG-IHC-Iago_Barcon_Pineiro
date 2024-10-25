@@ -2,7 +2,7 @@
 
     "diameter":"300",
     "normalize":"True",
-    "min_size":"12",
+    "min_size":"30",
     "niter":"None",
     "tile_overlap":"0.1",
     "flow_threshold":"0.4",
