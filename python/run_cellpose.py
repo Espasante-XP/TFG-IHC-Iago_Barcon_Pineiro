@@ -15,17 +15,7 @@ import matplotlib
 matplotlib.use('TKAgg')     #Como no se puede ver nada con Qt, he mirado en internet y con este me iría     Source: https://stackoverflow.com/questions/41994485/how-to-fix-could-not-find-or-load-the-qt-platform-plugin-windows-while-using-m
 
 
-#Añadido por mi para que carguen las imágenes de una carpeta
-import os
-from PIL import Image
 
-# I will download images from website
-#urls = ['http://www.cellpose.org/static/images/img02.png',
- #       'http://www.cellpose.org/static/images/img03.png',
-  #      'http://www.cellpose.org/static/images/img05.png']
-
-#files = ['./CellPose_test/test/000_img.png']
-files = ['./Imagenes_para_entrenamiento/IL6_1/Image_1033.jpg']
 
 
 """
@@ -50,21 +40,14 @@ imagenes = []
 
 ruta_carpeta = '../Imagenes_para_entrenamiento/IL6_1' 
 
-#i = 0
 for nombre_archivo in os.listdir(ruta_carpeta):
     # Asegúrate de poner aquí todos los formatos que quieras cargar
     if nombre_archivo.endswith('.jpg'): # or nombre_archivo.endswith('.png'): 
         ruta_imagen = os.path.join(ruta_carpeta, nombre_archivo)
         imagenes.append(ruta_imagen)
-  
-#for url in urls:
- #   parts = urlparse(url)
-  #  filename = os.path.basename(parts.path)
-   # if not os.path.exists(filename):
-    #    sys.stderr.write('Downloading: "{}" to {}\n'.format(url, filename))
-     #   utils.download_url_to_file(url, filename)
-    #files.append(filename)
 
+print("\n")  
+print(imagenes)
 
 img2 = io.imread(imagenes[2])
 
@@ -81,8 +64,7 @@ print("\n")
 print("Se tenía que crear una ventana con la imagen pero ya no lo hago") #Añadido tras comentar lo de arriba
 print("\n")
 
-#No me acuerdo ni por que está
-print(imagenes)
+
 
 
 
@@ -107,34 +89,7 @@ model = models.Cellpose(gpu=False, model_type='cyto3')
 # or if you have different types of channels in each image
 #channels = [[2,3], [0,0], [0,0]]
 
-channels = [[0,0]] #, [0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0,0]
-
-# He quitado todos los canales menos uno, a ver si aún así saca todas las máscaras
-
-# if diameter is set to None, the size of the cells is estimated on a per image basis
-# you can set the average cell `diameter` in pixels yourself (recommended) 
-# diameter can be a list or a single number for all images
-
-# you can run all in a list e.g.
-# >>> imgs = [io.imread(filename) in for filename in files]
-# >>> masks, flows, styles, diams = model.eval(imgs, diameter=None, channels=channels)
-# >>> io.masks_flows_to_seg(imgs, masks, flows, diams, files, channels)
-# >>> io.save_to_png(imgs, masks, flows, files)
-
-# or in a loop
-#for chan, filename in zip(channels, files): #files es del viejo donde solo se usa la 33
-#for chan, filename in zip(channels, imagenes):
-    
-    #img2 = io.imread(filename) #Cambié img por img2
-    #print(filename)
-    
-    #masks, flows, styles, diams = model.eval(img2, diameter=None, channels=chan)
-
-    # save results so you can load in gui
-    #io.masks_flows_to_seg(img2, masks, flows, filename, channels=chan, diams=diams)
-
-    # save results as png
-    #io.save_to_png(img2, masks, flows, filename)
+channels = [[0,0]] # A lo mejor cambiando algo aquí la cosa mejora
 
 
 
@@ -150,11 +105,6 @@ num_categories = len(category_ids)
 # Load images for the given ids
 image_ids = coco.getImgIds()
 
-#Esta línea de abajo la tengo que cambiar para que se metan todos los valores en una lista de image_id o algo así y luego con 
-# eso haría el bucle o algo
-image_id = image_ids[0]  # Change this line to display a different image
-image_info = coco.loadImgs(image_id)
-
 annotation_ids = []
 annotations = []
 
@@ -166,9 +116,6 @@ for id in image_ids:
     height, width = img_info['height'], img_info['width']
     aux = np.zeros((height, width), dtype=np.uint8)
     binaryMasks.append(aux)
-
-#[HECHO] Creo que tengo que hacer 2 bucles, el de fuera con los valores de annotation_ids y el de dentro como este que hay pero  
-# en binaryMasks[index] el valor de index creo que tiene que ser el número de iteración del bucle grande en el bucle grande
 
 index = 0
 
@@ -203,6 +150,13 @@ import json
 
 archivo_json = '../Valores_para_evaluacion/parametros_model_eval.json'
 nombre_diameter = 'diameter'
+nombre_min_size = 'min_size'
+nombre_normalize = 'normalize'
+nombre_niter = 'niter'
+nombre_tile_overlap = 'tile_overlap'
+nombre_flow_threshold = 'flow_threshold'
+nombre_cellprob_threshold = 'cellprob_threshold'
+nombre_stitch_threshold = 'stitch_threshold'
 
 archivo_abierto = open(archivo_json)
 
@@ -212,6 +166,8 @@ valores_parametros_modelo = json.load(archivo_abierto)
 print("Valor de diameter en el json = ")
 print(valores_parametros_modelo[nombre_diameter])
 
+
+#Comprobaciones de que los valores cargados son correctos
 texto_valor_diameter = valores_parametros_modelo[nombre_diameter]
 
 if(texto_valor_diameter.isdigit()):
@@ -219,8 +175,96 @@ if(texto_valor_diameter.isdigit()):
 elif (texto_valor_diameter.isalpha() and texto_valor_diameter == "None"):
     valor_diameter = None
 else:
-    print("Error, el valor introducido enpara la variable diameter no es válido")
+    print("Error, el valor introducido para la variable diameter no es válido")
     exit()
+
+
+texto_valor_min_size = valores_parametros_modelo[nombre_min_size]
+
+if(texto_valor_min_size.isdigit()):
+    valor_min_size = int(texto_valor_min_size)
+elif (texto_valor_min_size.isalpha() and texto_valor_min_size == "None"):
+    valor_min_size = None
+else:
+    print("Error, el valor introducido para la variable min_size no es válido")
+    exit()
+
+
+texto_valor_normalize = valores_parametros_modelo[nombre_normalize]
+
+if(texto_valor_normalize.isalpha() and texto_valor_normalize == "True"):
+    valor_normalize = True
+elif (texto_valor_normalize.isalpha() and texto_valor_normalize == "False"):
+    valor_normalize = False
+else:
+    print("Error, el valor introducido para la variable normalize no es válido")
+    exit()
+
+
+texto_valor_niter = valores_parametros_modelo[nombre_niter]
+
+if(texto_valor_niter.isdigit()):
+    valor_niter = int(texto_valor_niter)
+elif (texto_valor_niter.isalpha() and texto_valor_niter == "None"):
+    valor_niter = None
+else:
+    print("Error, el valor introducido para la variable niter no es válido")
+    exit()
+
+
+def es_numero(cadena):
+    try:
+        float(cadena)
+        return True
+    except ValueError:
+        return False
+
+
+texto_valor_tile_overlap = valores_parametros_modelo[nombre_tile_overlap]
+
+if(es_numero(texto_valor_tile_overlap)):
+    valor_tile_overlap = float(texto_valor_tile_overlap)
+elif (texto_valor_tile_overlap.isalpha() and texto_valor_tile_overlap == "None"):
+    valor_tile_overlap = None
+else:
+    print("Error, el valor introducido para la variable tile_overlap no es válido")
+    exit()
+
+
+texto_valor_flow_threshold = valores_parametros_modelo[nombre_flow_threshold]
+
+if(es_numero(texto_valor_flow_threshold)):
+    valor_flow_threshold = float(texto_valor_flow_threshold)
+elif (texto_valor_flow_threshold.isalpha() and texto_valor_flow_threshold == "None"):
+    valor_flow_threshold = None
+else:
+    print("Error, el valor introducido para la variable flow_threshold no es válido")
+    exit()
+
+
+texto_valor_cellprob_threshold = valores_parametros_modelo[nombre_cellprob_threshold]
+
+if(es_numero(texto_valor_cellprob_threshold)):
+    valor_cellprob_threshold = float(texto_valor_cellprob_threshold)
+elif (texto_valor_cellprob_threshold.isalpha() and texto_valor_cellprob_threshold == "None"):
+    valor_cellprob_threshold = None
+else:
+    print("Error, el valor introducido para la variable cellprob_threshold no es válido")
+    exit()
+
+
+texto_valor_stitch_threshold = valores_parametros_modelo[nombre_stitch_threshold]
+
+if(es_numero(texto_valor_stitch_threshold)):
+    valor_stitch_threshold = float(texto_valor_stitch_threshold)
+elif (texto_valor_stitch_threshold.isalpha() and texto_valor_stitch_threshold == "None"):
+    valor_stitch_threshold = None
+else:
+    print("Error, el valor introducido para la variable stitch_threshold no es válido")
+    exit()
+
+
+
 
 from generate_seg_mask import obtener_izquierda_delimitador
 from generate_seg_mask import generate_seg_mask
@@ -234,7 +278,9 @@ for filename in imagenes:
     # Utiliza siempre el primer valor de channels
     chan = channels[0]
 
-    masks, flows, styles, diams = model.eval(img2, diameter=valor_diameter, channels=chan) #diameter=None
+    masks, flows, styles, diams = model.eval(img2, diameter=valor_diameter, channels=chan, normalize=valor_normalize,
+             flow_threshold=valor_flow_threshold, cellprob_threshold=valor_cellprob_threshold,
+             stitch_threshold=valor_stitch_threshold, min_size=valor_min_size, niter=valor_niter, tile_overlap=valor_tile_overlap)
 
     masks_pred.append(masks)
 
@@ -254,6 +300,8 @@ for filename in imagenes:
 print("\n")
 print("Ha acabado la parte de generación de máscaras del modelo")
 print("\n")
+
+from PIL import Image
 
 def resize_image(image_array, max_size=512):
     # Convertir el array a una imagen PIL
@@ -300,27 +348,42 @@ prueba_lista.append(1)
 #prueba_lista.append(4) #Con este tengo que tener los tamaños de las imágenes de 200x200 y la RAM está al límite
 
 
-# Hacer el bucle donde se guardarán en listas todos los valores que salen de la función boundary_scores
-# Hacer 2 variables auxiliares para que sean listas de un elemento con las máscaras
-
-#precision, recall, fscore = boundary_scores(resized_masks_true, resized_masks_pred, prueba_lista)
-
-
-
 resized_masks_true = []
 resized_masks_pred = []
 
+# Con 128 funciona pero los valores son una puta mierda, si hay 4 en prueba_lista en boundary_scores
+# Con 200 funciona pero me llega la RAM al límite, si hay 4 en boundary_scores (en el viejo, creo)
+# Con 300 funciona parece que bien, aunque si hay algo más le cuesta a la memoria, si hay solo 1 en prueba_lista en boundary_scores
+# Con 275 va, si hay solo 1 en prueba_lista en boundary_scores
+tamanho_escala = 275
+
 for index in range(0, len(binaryMasks)):
-    aux = resize_image(binaryMasks[index], 275) # Con 128 funciona pero los valores son una puta mierda, si hay 4 en boundary_scores
-    resized_masks_true.append(aux) # Con 200 funciona pero me llega la RAM al límite, si hay 4 en boundary_scores
-    aux = resize_image(masks_pred[index], 275) # Con 300 funciona parece que bien, aunque si hay algo más le cuesta a la memoria
-    resized_masks_pred.append(aux) 
+    aux = resize_image(binaryMasks[index], tamanho_escala) 
+    resized_masks_true.append(aux) 
+    aux = resize_image(masks_pred[index], tamanho_escala) 
+    resized_masks_pred.append(aux)             
 
 
 import gc
 
 gc.collect() # Forzar la recolección de basura
 
+#precision, recall, fscore = boundary_scores(resized_masks_true, resized_masks_pred, prueba_lista)
+
+def process_in_batches(masks_true, masks_pred, prueba_lista, batch_size):
+    precision_list, recall_list, fscore_list = [], [], []
+    for i in range(0, len(masks_true), batch_size):
+        batch_true = masks_true[i:i + batch_size]
+        batch_pred = masks_pred[i:i + batch_size]
+        precision, recall, fscore = boundary_scores(batch_true, batch_pred, prueba_lista)
+        precision_list.append(precision)
+        recall_list.append(recall)
+        fscore_list.append(fscore)
+        gc.collect() # Forzar la recolección de basura
+
+    return np.mean(precision_list), np.mean(recall_list), np.mean(fscore_list)
+
+batch_size = 1000  # Ajusta el tamaño del lote según tu memoria disponible
 
 precision = []
 recall = []
@@ -335,6 +398,15 @@ for index in range(0, len(resized_masks_true)):
     pred_list_aux.append(resized_masks_pred[index])
     gc.collect() # Forzar la recolección de basura
     aux1, aux2, aux3 = boundary_scores(true_list_aux, pred_list_aux, prueba_lista)
+
+
+    #true_list_aux2 = []
+    #true_list_aux2.append(binaryMasks[index])
+    #pred_list_aux2 = []
+    #pred_list_aux2.append(masks_pred[index])
+    #aux1, aux2, aux3 = process_in_batches(true_list_aux2, pred_list_aux2, prueba_lista, batch_size)
+    
+    
     #precision, recall, fscore = boundary_scores(resized_masks_true, resized_masks_pred, prueba_lista)
     precision.append(aux1)
     recall.append(aux2)
@@ -343,17 +415,11 @@ for index in range(0, len(resized_masks_true)):
     gc.collect() # Forzar la recolección de basura
 
 
-#Tengo que hacer el bucle para pillar con las anotaciones el nombre de la imagen, quitarle el .jpg
-# y crear el nombre completo para guardarlo en una lista y usarlo luego para exportar los diccionarios.
-# Creo el diccionario en el bucle para no hacer una lista con todos los diccionarios si no que así solo
-# tengo que reutilizar y exportar el diccionario, espero que funcione
-
 #Función para crear el nombre del archivo donde se guardan las métricas de la imagen
 def create_name_metrics_archive(full_name_metrics_archive):
     path_folder_metrics = '../Resultado_metricas/'
     full_path = path_folder_metrics + full_name_metrics_archive
     return full_path
-
 
 
 #Función para obtener el nombre de la imagen sin extensión a la que pertenecen las métricas 
@@ -381,7 +447,7 @@ def obtain_image_name(index):
 #El diccionario supongo que lo haré del tipo nombre (de la imagen), jaccard -> valor, precision -> valor, recall -> valor y F-score -> valor
 
 
-#Bucle para crear los diccionarios, guardar los datos de los diccionarios en 
+#Bucle para crear los diccionarios, guardar los datos de los diccionarios en archivos .json
 for index in range(0, len(binaryMasks)):
     nombre_imagen = obtain_image_name(index)
     path_metricas = create_name_metrics_archive(nombre_imagen)
@@ -404,32 +470,10 @@ print("\n")
 
 exit()
 
-"""
-print('Mask = ')
-print(type(masks))
-print(masks)
-
-print('Flows = ')
-print(type(flows))
-print(flows)
-
-print('Img2 = ')
-print(type(img2))
-print(img2)
-
-print('Filename = ')
-print(type(filename))
-print(filename)
-
-# DISPLAY RESULTS
-from cellpose import plot
-
-fig = plt.figure(figsize=(12,5))
-
-plot.show_segmentation(fig, img2, masks, flows[0], channels=chan)
-plt.tight_layout()
-plt.show()
-
-"""
 
 
+# Mirar de hacer lo que puso Copilot de utilizar del para borrar las variables que ya no use y así, de paso, 
+# ver si hago que se utilice menos memoria en el programa.
+
+# Primero guardar con un commit los valores, si eso en una rama que sea pruebas o algo así, no en la principal.
+# Probar con diameter 400 y comparar con los resultados con diameter 300
