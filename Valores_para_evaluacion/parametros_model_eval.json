@@ -3,7 +3,7 @@
     "diameter":"300",
     "min_size":"100",
     "normalize":"True",
-    "niter":"None",
+    "niter":"1800", 
     "tile_overlap":"0.1",
     "flow_threshold":"0.4",
     "cellprob_threshold":"0.0",
