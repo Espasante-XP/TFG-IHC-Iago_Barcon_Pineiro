@@ -1,7 +1,7 @@
 {
 
     "diameter":"300",
-    "min_size":"15",
+    "min_size":"100",
     "normalize":"True",
     "niter":"None",
     "tile_overlap":"0.1",
