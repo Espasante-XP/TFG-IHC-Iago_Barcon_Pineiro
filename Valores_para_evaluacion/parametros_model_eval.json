@@ -5,7 +5,7 @@
     "normalize":"True",
     "niter":"None",
     "tile_overlap":"0.3",
-    "flow_threshold":"0.6",
+    "flow_threshold":"0.2",
     "cellprob_threshold":"0.0",
     "stitch_threshold":"0.0"
 
