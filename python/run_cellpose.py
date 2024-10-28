@@ -49,7 +49,7 @@ for nombre_archivo in os.listdir(ruta_carpeta):
 print("\n")  
 print(imagenes)
 
-img2 = io.imread(imagenes[2])
+img2 = io.imread(imagenes[0])
 
 
 """ Lo he comentado para no tener que cerrar todo el rato la ventana que se abre
@@ -95,7 +95,7 @@ channels = [[0,0]] # A lo mejor cambiando algo aquí la cosa mejora
 
 from pycocotools.coco import COCO
 
-annFile = 'IL6_1_prueba.json'
+annFile = 'IL6_1.json'
 
 coco=COCO(annFile) # funciona
 
@@ -156,7 +156,6 @@ nombre_niter = 'niter'
 nombre_tile_overlap = 'tile_overlap'
 nombre_flow_threshold = 'flow_threshold'
 nombre_cellprob_threshold = 'cellprob_threshold'
-nombre_stitch_threshold = 'stitch_threshold'
 
 archivo_abierto = open(archivo_json)
 
@@ -253,17 +252,6 @@ else:
     exit()
 
 
-texto_valor_stitch_threshold = valores_parametros_modelo[nombre_stitch_threshold]
-
-if(es_numero(texto_valor_stitch_threshold)):
-    valor_stitch_threshold = float(texto_valor_stitch_threshold)
-elif (texto_valor_stitch_threshold.isalpha() and texto_valor_stitch_threshold == "None"):
-    valor_stitch_threshold = None
-else:
-    print("Error, el valor introducido para la variable stitch_threshold no es válido")
-    exit()
-
-
 
 
 from generate_seg_mask import obtener_izquierda_delimitador
@@ -280,7 +268,7 @@ for filename in imagenes:
 
     masks, flows, styles, diams = model.eval(img2, diameter=valor_diameter, channels=chan, normalize=valor_normalize,
              flow_threshold=valor_flow_threshold, cellprob_threshold=valor_cellprob_threshold,
-             stitch_threshold=valor_stitch_threshold, min_size=valor_min_size, niter=valor_niter, tile_overlap=valor_tile_overlap)
+            min_size=valor_min_size, niter=valor_niter, tile_overlap=valor_tile_overlap, progress=True)
 
     masks_pred.append(masks)
 
@@ -300,6 +288,15 @@ for filename in imagenes:
 print("\n")
 print("Ha acabado la parte de generación de máscaras del modelo")
 print("\n")
+
+
+#Prueba eliminar variables 1
+
+del archivo_json, nombre_diameter, nombre_min_size, nombre_normalize, nombre_niter, nombre_tile_overlap, valor_normalize, valor_diameter
+del nombre_cellprob_threshold, nombre_flow_threshold, channels, valor_flow_threshold, valor_cellprob_threshold
+del valor_min_size, valor_niter, valor_tile_overlap, nombreArchivo, urlMascara, indice, imagenes, masks, img2
+del filename,  flows, styles, diams, model, archivo_abierto
+
 
 from PIL import Image
 
@@ -336,6 +333,11 @@ for index in range(0, len(resultados_jaccard)):
     print("\n")
 
 #resultado = aggregated_jaccard_index(resized_masks_true, resized_masks_pred)
+
+
+#Prueba eliminar variables 2
+del true_list_aux, pred_list_aux, aux, index
+
 
 from cellpose.metrics import boundary_scores
 

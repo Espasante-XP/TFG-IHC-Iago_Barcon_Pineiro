@@ -6,8 +6,7 @@
     "niter":"None",
     "tile_overlap":"0.1",
     "flow_threshold":"0.4",
-    "cellprob_threshold":"0.0",
-    "stitch_threshold":"0.0"
+    "cellprob_threshold":"-0.5"
 
 
 }
