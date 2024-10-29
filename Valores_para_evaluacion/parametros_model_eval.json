@@ -1,13 +1,19 @@
 {
 
-    "diameter":"300",
+    "diameter":"325",
     "min_size":"100",
     "normalize":"True",
     "niter":"None",
+<<<<<<< Updated upstream
     "tile_overlap":"0.1",
     "flow_threshold":"0.6",
     "cellprob_threshold":"-3.0",
     "stitch_threshold":"0.0"
+=======
+    "tile_overlap":"0.3",
+    "flow_threshold":"0.6",
+    "cellprob_threshold":"-0.5"
+>>>>>>> Stashed changes
 
 
 }
