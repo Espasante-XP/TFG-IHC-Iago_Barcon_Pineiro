@@ -124,13 +124,29 @@ for id in image_ids:
     annotation = coco.getAnnIds(imgIds=id)
     annotation_ids.append(annotation) #Revisar más tarde con calma porque creo que no hace falta que sea una lista
     annotations = coco.loadAnns(annotation)
+    for ann_index, annotation in enumerate(annotations):
+        segmentation = annotation['segmentation']
+        mask = coco.annToMask(annotation)                #Esta es la función que me dijo Raquel de usar, la función annToMask
+        # Add the mask to the binary mask
+        binaryMasks[index][mask>0] = ann_index
+    index = index + 1
+
+
+
+""" Código base que funciona
+
+#Hago la creación de las máscaras en base a las anotaciones en otro bucle para no liarme
+for id in image_ids:
+    annotation = coco.getAnnIds(imgIds=id)
+    annotation_ids.append(annotation) #Revisar más tarde con calma porque creo que no hace falta que sea una lista
+    annotations = coco.loadAnns(annotation)
     for annotation in annotations:
         segmentation = annotation['segmentation']
         mask = coco.annToMask(annotation)                #Esta es la función que me dijo Raquel de usar, la función annToMask
         # Add the mask to the binary mask
         binaryMasks[index] += mask
     index = index + 1
-
+"""
 
 
 #Muestra todas las máscaras cargadas (funciona correctamente)
