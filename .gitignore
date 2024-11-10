@@ -11,3 +11,4 @@ __pycache__/
 python/*.json
 Conclusiones_valores_metricas.txt
 python/guardar_mascara_ground_truth.py
+python/pruebas
