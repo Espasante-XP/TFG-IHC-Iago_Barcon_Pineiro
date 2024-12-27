@@ -12,3 +12,8 @@ python/*.json
 Conclusiones_valores_metricas.txt
 python/guardar_mascara_ground_truth.py
 python/pruebas
+Imagenes_validacion/
+Imagenes_entrenamiento/
+python/Anotaciones_coco/
+python/Anotaciones_coco_malas/
+python/paquetes_anteriores.txt
