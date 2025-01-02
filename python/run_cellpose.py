@@ -38,7 +38,9 @@ imagenes = cargar_imagenes('ruta/a/tu/carpeta')
 
 imagenes = []
 
-ruta_carpeta = '../Imagenes_para_entrenamiento/IL6_1' 
+#ruta_carpeta = '../Imagenes_para_entrenamiento/IL6_1' 
+
+ruta_carpeta = '../Imagenes_para_entrenamiento/IL6_1/pruebas_modelos' 
 
 for nombre_archivo in os.listdir(ruta_carpeta):
     # Asegúrate de poner aquí todos los formatos que quieras cargar
@@ -74,7 +76,24 @@ from cellpose import models, io
 
 # DEFINE CELLPOSE MODEL
 # model_type='cyto3' or model_type='nuclei'
-model = models.Cellpose(gpu=False, model_type='cyto3')
+#model = models.Cellpose(gpu=False, model_type='cyto3')
+
+
+path_modelo_reentrenado = './models/mi_modelo_reentrenado_todas_las_imagenes_prueba1'
+model = models.CellposeModel(gpu=True, model_type='cyto3')
+
+model.net.load_model(path_modelo_reentrenado)
+
+"""
+path_modelo_reentrenado = './models/mi_modelo_reentrenado_todas_las_imagenes_prueba1'
+
+model = models.Cellpose(gpu=True, model_type='cyto3') # Cambiado a gpu=True
+"""
+
+#model = models.Cellpose(gpu=True, model_type='cyto3', pretrained_model=path_modelo_reentrenado) # Cambiado a gpu=True
+
+#model = models.Cellpose(gpu=True, pretrained_size=path_modelo_reentrenado) # Cambiado a gpu=True y he quitado model_type='cyto3', no sé si está bien
+
 
 # define CHANNELS to run segementation on
 # grayscale=0, R=1, G=2, B=3
@@ -282,9 +301,20 @@ for filename in imagenes:
     # Utiliza siempre el primer valor de channels
     chan = channels[0]
 
+    """
     masks, flows, styles, diams = model.eval(img2, diameter=valor_diameter, channels=chan, normalize=valor_normalize,
              flow_threshold=valor_flow_threshold, cellprob_threshold=valor_cellprob_threshold,
             min_size=valor_min_size, niter=valor_niter, tile_overlap=valor_tile_overlap, progress=True)
+    """
+
+    resultado = model.eval(img2, diameter=valor_diameter, channels=chan, normalize=valor_normalize,
+             flow_threshold=valor_flow_threshold, cellprob_threshold=valor_cellprob_threshold,
+            min_size=valor_min_size, niter=valor_niter, tile_overlap=valor_tile_overlap, progress=True)
+
+    if len(resultado) == 3: 
+        masks, flows, styles = resultado 
+    else: 
+        masks, flows, styles, diams = resultado
 
     masks_pred.append(masks)
 
@@ -311,8 +341,12 @@ print("\n")
 del archivo_json, nombre_diameter, nombre_min_size, nombre_normalize, nombre_niter, nombre_tile_overlap, valor_normalize, valor_diameter
 del nombre_cellprob_threshold, nombre_flow_threshold, channels, valor_flow_threshold, valor_cellprob_threshold
 del valor_min_size, valor_niter, valor_tile_overlap, nombreArchivo, urlMascara, indice, imagenes, masks, img2
-del filename,  flows, styles, diams, model, archivo_abierto
+#del filename,  flows, styles, diams, model, archivo_abierto
 
+if len(resultado) == 3: 
+    del filename, flows, styles, model, archivo_abierto, resultado 
+else: 
+    del filename, flows, styles, diams, model, archivo_abierto, resultado 
 
 from PIL import Image
 
