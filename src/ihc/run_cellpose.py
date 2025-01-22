@@ -40,7 +40,7 @@ imagenes = []
 
 #ruta_carpeta = '../Imagenes_para_entrenamiento/IL6_1' 
 
-ruta_carpeta = '../Imagenes_para_entrenamiento/IL6_1/pruebas_modelos' 
+ruta_carpeta = '../../Imagenes_para_entrenamiento/IL6_1/pruebas_modelos' # Pondría la ruta a imágenes de validación, pero la carpeta es un desastre
 
 for nombre_archivo in os.listdir(ruta_carpeta):
     # Asegúrate de poner aquí todos los formatos que quieras cargar
@@ -79,7 +79,19 @@ from cellpose import models, io
 #model = models.Cellpose(gpu=False, model_type='cyto3')
 
 
-path_modelo_reentrenado = './models/mi_modelo_reentrenado_todas_las_imagenes_prueba1'
+# path_modelo_reentrenado = './models/mi_modelo_reentrenado_todas_las_imagenes_prueba1'
+
+
+
+
+path_modelo_reentrenado = '../../models/prueba_mod_train_seg_imagenes_reescaladas_10epochs_8_batch_size'
+
+
+
+
+
+#path_modelo_reentrenado = '../models/mi_modelo_reentrenado_todas_las_imagenes_5000epochs'
+
 model = models.CellposeModel(gpu=True, model_type='cyto3')
 
 model.net.load_model(path_modelo_reentrenado)
@@ -114,7 +126,9 @@ channels = [[0,0]] # A lo mejor cambiando algo aquí la cosa mejora
 
 from pycocotools.coco import COCO
 
-annFile = 'IL6_1.json'
+#annFile = 'IL6_1.json' # Cambiarlo por el que toca
+
+annFile = 'Anotaciones_coco/IL6_1/IL6_1_coco.json' 
 
 coco=COCO(annFile) # funciona
 
@@ -183,7 +197,8 @@ for mask in binaryMasks:
 
 import json
 
-archivo_json = '../Valores_para_evaluacion/parametros_model_eval.json'
+#archivo_json = '../Valores_para_evaluacion/parametros_model_eval.json'
+archivo_json = '../../config/modelo_cellpose.json'
 nombre_diameter = 'diameter'
 nombre_min_size = 'min_size'
 nombre_normalize = 'normalize'
@@ -469,7 +484,7 @@ for index in range(0, len(resized_masks_true)):
 
 #Función para crear el nombre del archivo donde se guardan las métricas de la imagen
 def create_name_metrics_archive(full_name_metrics_archive):
-    path_folder_metrics = '../Resultado_metricas/'
+    path_folder_metrics = '../../resultados/'
     full_path = path_folder_metrics + full_name_metrics_archive
     return full_path
 

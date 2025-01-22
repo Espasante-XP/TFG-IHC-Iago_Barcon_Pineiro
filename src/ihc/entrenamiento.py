@@ -7,6 +7,9 @@ import cv2
 # Cargar el modelo existente con soporte para GPU
 model = models.Cellpose(gpu=True, model_type='cyto3')  # Cambiado a gpu=True
 
+
+# Guarda en variable_destino el path de todos los elementos que se encuentren dentro de la carpeta y subcarpetas
+# de ruta_carpeta que tengan la extensión dada
 def guardar_elementos_de_carpeta(ruta_carpeta, variable_destino, extension):
     for carpeta_raiz, _, archivos in os.walk(ruta_carpeta):
         for nombre_archivo in archivos:
@@ -47,7 +50,9 @@ guardar_elementos_de_carpeta(ruta_carpeta_entrenamiento2, y_train_aux, extension
 """
 
 
-ruta_carpeta_entrenamiento_def = '../Imagenes_entrenamiento/'
+# ruta_carpeta_entrenamiento_def = '../Imagenes_entrenamiento/'
+
+ruta_carpeta_entrenamiento_def = '../../Imagenes_entrenamiento_reescalado/'
 path_resultado = []
 
 extension = '.jpg'
@@ -99,7 +104,9 @@ guardar_elementos_de_carpeta(ruta_carpeta_validacion, y_val_aux, extension2)
 """
 
 
-ruta_carpeta_validacion_def = '../Imagenes_validacion/'
+#ruta_carpeta_validacion_def = '../Imagenes_validacion/'
+
+ruta_carpeta_validacion_def = '../../Imagenes_validacion_reescalado/'
 path_resultado = []
 
 X_val_paths = []
@@ -114,6 +121,8 @@ guardar_elementos_de_carpeta(ruta_carpeta_validacion_def, y_val_aux, extension2)
 
 #print("path_resultado:", path_resultado)
 print("len(path_resultado):", len(path_resultado))
+#print("path_resultado (validación): ",path_resultado)
+
 
 #exit()
 
@@ -130,13 +139,14 @@ del X_train_paths, y_train_aux, X_val_paths, y_val_aux
 # Configurar los parámetros de entrenamiento
 channels = [0, 0]
 normalize = True
-weight_decay = 1e-4
-learning_rate = 0.01
-batch_size = 8 # Si acaso poner en 16 o en 32
-num_epochs = 5000    # Reducido de 5000 a 1
-nombre_modelo = 'mi_modelo_reentrenado_todas_las_imagenes_5000epochs'
-destino_reentrenamiento = '../'
+weight_decay = 1e-4 # Valor por defecto 1e-5
+learning_rate = 0.01 # El doble del valor por defecto (0.005)
+batch_size = 8  # Pasamos de 8 a 24    s
+num_epochs = 10    # Reducido de 5000 a 1000
+nombre_modelo = 'prueba_mod_train_seg_imagenes_reescaladas_10epochs_8_batch_size' # Nombre del modelo
+destino_reentrenamiento = '../../'
 guardar_cada = 10 # Cada x epochs se guarda el modelo, por defecto es 100
+valor_save_each = True # No me queda muy claro como se diferencia esto del save_every pero bueno, si lo paso como argumento no va la función
 min_train_masks = 1     # Reducido el valor de min_train_masks de 5 (por defecto) a 1, con esto ahora funciona
 
 """ 26.571.644
@@ -162,18 +172,38 @@ for idx, img in enumerate(X_val):
 
 #exit()
 
-# Entrenar el modelo
-model_path_all = train.train_seg(model.cp.net, train_data=X_train, train_labels=y_train,
-                                 channels=channels, normalize=normalize, test_data=X_val, test_labels=y_val,
-                                 weight_decay=weight_decay, SGD=True, learning_rate=learning_rate,
-                                 batch_size=batch_size, n_epochs=num_epochs, model_name=nombre_modelo,
-                                 save_path=destino_reentrenamiento, save_every=guardar_cada, min_train_masks=min_train_masks)
+training_losses = [] 
+validation_losses = []
 
-print("Modelo reentrenado y guardado en:", model_path_all)
+# Entrenar el modelo  
+# , training_losses, test_losses
+model_path_all, training_losses, test_losses = train.train_seg(model.cp.net, train_data=X_train, train_labels=y_train, channels=channels, 
+                                                                normalize=normalize, test_data=X_val, test_labels=y_val, weight_decay=weight_decay, 
+                                                                SGD=True, learning_rate=learning_rate, batch_size=batch_size, n_epochs=num_epochs, 
+                                                                model_name=nombre_modelo, save_path=destino_reentrenamiento, save_every=guardar_cada, 
+                                                                min_train_masks=min_train_masks)
+
+print("(No en train.py) Modelo reentrenado y guardado en:", model_path_all)
+
+
+
+print("training_losses:", training_losses)
+
+print("test_losses:", test_losses)
+"""
+path_train_losses = './train_losses.npy'
+path_test_losses = './test_losses.npy'
+
+np.save(path_train_losses, training_losses, allow_pickle=True)
+
+np.save(path_test_losses, test_losses, allow_pickle=True)
+"""
+
 
 exit()
 
-#Tengo que revisar si de verdad se están pasando las máscaras porque creo que con las transformaciones que hago se va todo a la mierda.
-
+# Tengo que revisar si de verdad se están pasando las máscaras porque creo que con las transformaciones que hago se va todo a la mierda.
 
 # Mirar tamaño de imagen y tamaño de célula que se usa en el modelo
+
+# Mirar si puedo poner como variables que se igualan a la función los train losses y test losses. Mirar si puedo poner batch_size 24 
