@@ -1,19 +1,28 @@
 **/.ipynb_checkpoints
-copia codigo base
-Trabajo TFG.zip
-Imagenes para entrenamiento.zip
+**/*.npy
+**/*.png
+**/*.jpg
+**/*.txt
+src/ihc/*.json
+
+__pycache__/
+copia codigo base/
 Imagenes para entrenamiento/
 Imagenes_para_entrenamiento/
-**/*.npy
-__pycache__/
-*.png
-*.jpg
-python/*.json
-Conclusiones_valores_metricas.txt
-python/guardar_mascara_ground_truth.py
-python/pruebas
+src/ihc/models/
+src/ihc/pruebas/
 Imagenes_validacion/
+Imagenes_validacion_reescalado/
 Imagenes_entrenamiento/
-python/Anotaciones_coco/
-python/Anotaciones_coco_malas/
-python/paquetes_anteriores.txt
+Imagenes_entrenamiento_reescalado/
+reescalado/
+src/ihc/Anotaciones_coco/
+src/ihc/Anotaciones_coco_malas/
+IL6_1_reescalado/
+models/
+
+src/ihc/reentrenamiento.py
+src/ihc/training_Copilot.py
+src/ihc/guardar_mascara_ground_truth.py
+Imagenes para entrenamiento.zip
+Trabajo TFG.zip
