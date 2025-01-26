@@ -8,6 +8,9 @@ import math
 import numpy as np
 from pycocotools.coco import COCO
 from pycocoevalcap.eval import COCOEvalCap
+import os
+import re
+
 
 
 def cosine_lr_schedule(optimizer, epoch, max_epoch, init_lr, min_lr):
@@ -199,3 +202,53 @@ def create_ade20k_label_colormap():
         [102, 255, 0],
         [92, 0, 255],
     ])
+
+# Devuelve el path de todos los elementos que se encuentren dentro de la carpeta y subcarpetas
+# de la ruta que tengan la extensión dada
+def obter_lista_ficheiros(ruta_carpeta, extension):
+    variable_destino = []
+    for carpeta_raiz, _, archivos in os.walk(ruta_carpeta):
+        for nombre_archivo in archivos:
+            if nombre_archivo.endswith(extension):
+                ruta_imagen = os.path.join(carpeta_raiz, nombre_archivo)
+                variable_destino.append(ruta_imagen)
+    return variable_destino  
+
+def es_numero(cadena):
+    try:
+        float(cadena)
+        return True
+    except ValueError:
+        return False
+
+
+def es_num_positivo_string(cadena: str) -> bool:
+
+    if not es_numero(cadena):
+        return False
+    else:
+        numero = float(cadena)
+    return numero > 0
+
+import os
+
+def es_ruta_valida(cadena: str) -> bool:
+    try:
+        if os.path.isabs(cadena) or os.path.relpath(cadena):
+            caracteres_invalidos = '<>:"|?*'
+            for caracter in caracteres_invalidos:
+                if caracter in cadena:
+                    return False
+            return True
+    except ValueError:
+        return False
+
+def es_extension_imagen_string(extension: str) -> bool:
+
+    extensiones_imagen = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'tiff', 'webp', 'svg']
+    
+    extension = extension.lower().lstrip('.')
+    
+    return extension in extensiones_imagen
+
+
