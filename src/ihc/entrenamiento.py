@@ -1,209 +1,217 @@
-import numpy as np
 from cellpose import models, train
-import os
-import cv2
+import json
+from utils import obter_lista_ficheiros, es_extension_imagen_string, es_ruta_valida, es_num_positivo_string, es_numero
+from pathlib import Path
 
 
-# Cargar el modelo existente con soporte para GPU
-model = models.Cellpose(gpu=True, model_type='cyto3')  # Cambiado a gpu=True
+model = models.Cellpose(gpu=True, model_type='cyto3')
+
+archivo_json = '../../config/training.json'
+
+archivo_abierto = open(archivo_json)
+
+nombre_dir_entrenamiento = 'path_entrenamiento'
+
+nombre_dir_validacion = 'path_validacion'
+
+nombre_ext_imagenes = 'extension_imagen'
+
+nombre_ext_mascara = 'extension_mascara'
+
+nombre_channels = 'channels'
+
+nombre_normalize = 'normalize'
+
+nombre_weight_decay = 'weight_decay'
+
+nombre_learning_rate = 'learning_rate'
+
+nombre_batch_size = 'batch_size'
+
+nombre_epochs = 'num_epochs'
+
+nombre_destino_reentrenamiento = 'destino_reentrenamiento'
+
+nombre_guardar_cada = 'guardar_cada'
+
+nombre_min_train_masks = 'min_train_masks'
+
+valores_parametros_modelo = json.load(archivo_abierto)
+
+print("")
 
 
-# Guarda en variable_destino el path de todos los elementos que se encuentren dentro de la carpeta y subcarpetas
-# de ruta_carpeta que tengan la extensión dada
-def guardar_elementos_de_carpeta(ruta_carpeta, variable_destino, extension):
-    for carpeta_raiz, _, archivos in os.walk(ruta_carpeta):
-        for nombre_archivo in archivos:
-            if nombre_archivo.endswith(extension):
-                ruta_imagen = os.path.join(carpeta_raiz, nombre_archivo)
-                variable_destino.append(ruta_imagen)
+#Comprobaciones de que los valores cargados son correctos
+texto_valor_dir_entrenamiento = valores_parametros_modelo[nombre_dir_entrenamiento]
 
-"""
-# Ejemplo de uso
-ruta_carpeta = './Imagenes_para_entrenamiento'
-variable_destino = []
-extension = '.jpg'
-guardar_elementos_de_carpeta(ruta_carpeta, variable_destino, extension)
-
-# Imprimir los archivos encontrados
-for ruta in variable_destino:
-    print(ruta)
-"""
+if(Path(texto_valor_dir_entrenamiento).exists() and Path(texto_valor_dir_entrenamiento).is_dir()):
+    root_training_directory = Path(texto_valor_dir_entrenamiento)
+else:
+    print("Error, el valor introducido para el directorio de entrenamiento no es válido")
+    exit()
 
 
+texto_valor_dir_validacion = valores_parametros_modelo[nombre_dir_validacion]
 
-"""
-# Preparar tus datos de entrenamiento
-ruta_carpeta_entrenamiento1 = '../Imagenes_para_entrenamiento/Control negativo 3'
-ruta_carpeta_entrenamiento2 = '../Imagenes_para_entrenamiento/MS FNB RMB_1'
-
-
-X_train_paths = []
-extension = '.jpg'
-guardar_elementos_de_carpeta(ruta_carpeta_entrenamiento1, X_train_paths, extension)
-guardar_elementos_de_carpeta(ruta_carpeta_entrenamiento2, X_train_paths, extension)
-
-extension2 = '.npy'
-y_train_aux = []
-guardar_elementos_de_carpeta(ruta_carpeta_entrenamiento1, y_train_aux, extension2)
-guardar_elementos_de_carpeta(ruta_carpeta_entrenamiento2, y_train_aux, extension2)
-
-"""
+if(Path(texto_valor_dir_validacion).exists() and Path(texto_valor_dir_validacion).is_dir()):
+    root_validation_directory = Path(texto_valor_dir_validacion)
+else:
+    print("Error, el valor introducido para el directorio de validación no es válido")
+    exit()
 
 
-# ruta_carpeta_entrenamiento_def = '../Imagenes_entrenamiento/'
+texto_valor_ext_imagenes = valores_parametros_modelo[nombre_ext_imagenes]
 
-ruta_carpeta_entrenamiento_def = '../../Imagenes_entrenamiento_reescalado/'
-path_resultado = []
-
-extension = '.jpg'
-
-X_train_paths = []
-
-guardar_elementos_de_carpeta(ruta_carpeta_entrenamiento_def, path_resultado, extension)
-guardar_elementos_de_carpeta(ruta_carpeta_entrenamiento_def, X_train_paths, extension)
-
-y_train_aux = []
-
-extension2 = '.npy'
-
-guardar_elementos_de_carpeta(ruta_carpeta_entrenamiento_def, path_resultado, extension2)
-guardar_elementos_de_carpeta(ruta_carpeta_entrenamiento_def, y_train_aux, extension2)
+if(es_extension_imagen_string(texto_valor_ext_imagenes)): 
+    if(texto_valor_ext_imagenes.startswith('.')):
+        ext_imagenes = texto_valor_ext_imagenes
+    else:
+        ext_imagenes = '.' + texto_valor_ext_imagenes    
+else:
+    print("Error, el valor introducido para la extensión de las imagenes no es válido")
+    exit()
 
 
-#print("path_resultado:", path_resultado)
-print("len(path_resultado):", len(path_resultado))
-print('\n')
+texto_valor_ext_mascara = valores_parametros_modelo[nombre_ext_mascara]
 
-#print("y_train_aux:", y_train_aux)
-
-# Tengo de crear todas las máscaras de ground truth para las imágenes de entrenamiento que me faltan
-# Cambiar el código para que se cojan los archivos de las subcarpetas de la carpeta dada en el entrenamiento y validación
-
-
-# Load y_train with np.load
-y_train = [np.load(fp).astype(np.int32) for fp in y_train_aux]
-
-# Load X_train images using OpenCV
-X_train = [cv2.imread(fp) for fp in X_train_paths]
+if(texto_valor_ext_mascara.lower().lstrip('.') == 'npy'): 
+    if(texto_valor_ext_mascara.startswith('.')):
+        ext_mascara = texto_valor_ext_mascara
+    else:
+        ext_mascara = '.' + texto_valor_ext_mascara
+else:
+    print("Error, el valor introducido para la extensión de las máscaras no es válido")
+    exit()
 
 
-"""
-# Preparar datos de validación
-ruta_carpeta_validacion = '../Imagenes_para_entrenamiento/IL6_1_solo_imagenes_y_ground_truth'
+valor_channels = valores_parametros_modelo[nombre_channels]
+
+if(isinstance(valor_channels, list)): 
+
+    channels = valor_channels
+else:
+    print(f"Error, el valor introducido para la variable {nombre_channels} no es válido")
+    exit()
 
 
-X_val_paths = []
-guardar_elementos_de_carpeta(ruta_carpeta_validacion, X_val_paths, extension)
-y_val_aux = []
-guardar_elementos_de_carpeta(ruta_carpeta_validacion, y_val_aux, extension2)
+texto_valor_normalize = valores_parametros_modelo[nombre_normalize]
+
+if(texto_valor_normalize.isalpha() and texto_valor_normalize == "True"):
+    normalize = True
+elif (texto_valor_normalize.isalpha() and texto_valor_normalize == "False"):
+    normalize = False
+else:
+    print(f"Error, el valor introducido para la variable {nombre_normalize} no es válido")
+    exit()
 
 
+texto_valor_weight_decay = valores_parametros_modelo[nombre_weight_decay]
 
-#print("X_val_paths:", X_val_paths)
-#print("y_val_aux:", y_val_aux)
-"""
-
-
-#ruta_carpeta_validacion_def = '../Imagenes_validacion/'
-
-ruta_carpeta_validacion_def = '../../Imagenes_validacion_reescalado/'
-path_resultado = []
-
-X_val_paths = []
-
-guardar_elementos_de_carpeta(ruta_carpeta_validacion_def, path_resultado, extension)
-guardar_elementos_de_carpeta(ruta_carpeta_validacion_def, X_val_paths, extension)
-
-y_val_aux = []
-
-guardar_elementos_de_carpeta(ruta_carpeta_validacion_def, path_resultado, extension2)
-guardar_elementos_de_carpeta(ruta_carpeta_validacion_def, y_val_aux, extension2)
-
-#print("path_resultado:", path_resultado)
-print("len(path_resultado):", len(path_resultado))
-#print("path_resultado (validación): ",path_resultado)
+if(es_numero(texto_valor_weight_decay)):
+    if(float(texto_valor_weight_decay) <= 1 and float(texto_valor_weight_decay) >= 0):
+        weight_decay = float(texto_valor_weight_decay)
+    else:
+        print(f"Error, el valor introducido para la variable {nombre_weight_decay} no es válido")
+        exit()        
+else:
+    print(f"Error, el valor introducido para la variable {nombre_weight_decay} no es válido")
+    exit()
 
 
-#exit()
+texto_valor_learning_rate = valores_parametros_modelo[nombre_learning_rate]
+
+if(es_num_positivo_string(texto_valor_learning_rate)):
+    if(float(texto_valor_learning_rate) <= 1):
+        learning_rate = float(texto_valor_learning_rate)
+    else:
+        print(f"Error, el valor introducido para la variable {nombre_learning_rate} no es válido")
+        exit()    
+else:
+    print(f"Error, el valor introducido para la variable {nombre_learning_rate} no es válido")
+    exit()
 
 
-# Load y_val with np.load
-y_val = [np.load(fp).astype(np.int32) for fp in y_val_aux]
+texto_valor_batch_size = valores_parametros_modelo[nombre_batch_size]
 
-# Load X_val images using OpenCV
-X_val = [cv2.imread(fp) for fp in X_val_paths]
+if(es_num_positivo_string(texto_valor_batch_size)):
+    batch_size = float(texto_valor_batch_size)
+else:
+    print(f"Error, el valor introducido para la variable {nombre_batch_size} no es válido")
+    exit()
 
-del path_resultado, ruta_carpeta_validacion_def, ruta_carpeta_entrenamiento_def, extension, extension2
-del X_train_paths, y_train_aux, X_val_paths, y_val_aux
 
-# Configurar los parámetros de entrenamiento
-channels = [0, 0]
-normalize = True
-weight_decay = 1e-4 # Valor por defecto 1e-5
-learning_rate = 0.01 # El doble del valor por defecto (0.005)
-batch_size = 8  # Pasamos de 8 a 24    s
-num_epochs = 10    # Reducido de 5000 a 1000
-nombre_modelo = 'prueba_mod_train_seg_imagenes_reescaladas_10epochs_8_batch_size' # Nombre del modelo
-destino_reentrenamiento = '../../'
-guardar_cada = 10 # Cada x epochs se guarda el modelo, por defecto es 100
-valor_save_each = True # No me queda muy claro como se diferencia esto del save_every pero bueno, si lo paso como argumento no va la función
-min_train_masks = 1     # Reducido el valor de min_train_masks de 5 (por defecto) a 1, con esto ahora funciona
+texto_valor_num_epochs = valores_parametros_modelo[nombre_epochs]
 
-""" 26.571.644
+if(es_num_positivo_string(texto_valor_num_epochs)):
+    num_epochs = float(texto_valor_num_epochs)
+else:
+    print(f"Error, el valor introducido para la variable {nombre_epochs} no es válido")
+    exit()
 
-# Verify and print the content and type of data before training
-for i, label in enumerate(y_train):
-    print(f"y_train[{i}]: type={type(label)}, shape={label.shape}, dtype={label.dtype}")
-    print(f"Unique values in y_train[{i}]: {np.unique(label)}")
 
-for i, label in enumerate(y_val):
-    print(f"y_val[{i}]: type={type(label)}, shape={label.shape}, dtype={label.dtype}")
-    print(f"Unique values in y_val[{i}]: {np.unique(label)}")
+texto_valor_destino_reentrenamiento = valores_parametros_modelo[nombre_destino_reentrenamiento]
 
-# Verify X_train elements are correct
-for idx, img in enumerate(X_train):
-    print(f"X_train element at index {idx}: {type(img)}, shape: {img.shape}, dtype={img.dtype}")
+if(es_ruta_valida(texto_valor_destino_reentrenamiento)):
+    destino_reentrenamiento = texto_valor_destino_reentrenamiento 
+else:
+    print("Error, el valor introducido para el directorio de salida no es válido")
+    exit()
 
-# Verify X_val elements are correct
-for idx, img in enumerate(X_val):
-    print(f"X_val element at index {idx}: {type(img)}, shape: {img.shape}, dtype={img.dtype}")
 
-"""
+texto_valor_guardar_cada = valores_parametros_modelo[nombre_guardar_cada]
 
-#exit()
+if(es_num_positivo_string(texto_valor_guardar_cada)):
+    if(float(texto_valor_guardar_cada) >= num_epochs):
+        print(f"Warning: El valor de {nombre_guardar_cada} es igual o superior al de {nombre_epochs}")
+    guardar_cada = float(texto_valor_guardar_cada)
+else:
+    print(f"Error, el valor introducido para la variable {nombre_guardar_cada} no es válido")
+    exit()
+
+
+texto_valor_min_train_masks = valores_parametros_modelo[nombre_min_train_masks]
+
+if(es_numero(texto_valor_min_train_masks)):
+    if(float(texto_valor_min_train_masks) >= 0):
+        min_train_masks = float(texto_valor_min_train_masks)
+    else:
+        print(f"Error, el valor introducido para la variable {nombre_min_train_masks} no es válido")
+        exit()   
+else:
+    print("Error, el valor introducido para la variable normalize no es válido")
+    exit()
+
+
+nombre_modelo = "modelo" + '-' + str(nombre_channels) + '_' + str(channels) + '-' + nombre_normalize + '_' + str(normalize) + '-' + nombre_weight_decay + '_' + str(weight_decay) + '-' + nombre_learning_rate + '_' + str(learning_rate) + '-' + nombre_batch_size + '_' + str(batch_size) + '-' + nombre_epochs + '_' + str(num_epochs) + '-' + nombre_guardar_cada + '_' + str(guardar_cada) + '-' + nombre_min_train_masks + '_' + str(min_train_masks)
+
+train_files = []
+
+train_files = obter_lista_ficheiros(root_training_directory, ext_imagenes)
+
+train_labels_files = []
+
+train_labels_files = obter_lista_ficheiros(root_training_directory, ext_mascara)
+
+test_files = []
+
+test_files = obter_lista_ficheiros(root_validation_directory, ext_imagenes)
+
+test_labels_files = []
+
+test_labels_files = obter_lista_ficheiros(root_validation_directory, ext_mascara)
+
 
 training_losses = [] 
 validation_losses = []
 
-# Entrenar el modelo  
-# , training_losses, test_losses
-model_path_all, training_losses, test_losses = train.train_seg(model.cp.net, train_data=X_train, train_labels=y_train, channels=channels, 
-                                                                normalize=normalize, test_data=X_val, test_labels=y_val, weight_decay=weight_decay, 
+
+model_path_all, training_losses, test_losses = train.train_seg(model.cp.net, train_files=train_files, train_labels_files=train_labels_files, 
+                                                                channels=channels, normalize=normalize, test_files=test_files, 
+                                                                test_labels_files=test_labels_files, load_files=True, weight_decay=weight_decay, 
                                                                 SGD=True, learning_rate=learning_rate, batch_size=batch_size, n_epochs=num_epochs, 
                                                                 model_name=nombre_modelo, save_path=destino_reentrenamiento, save_every=guardar_cada, 
                                                                 min_train_masks=min_train_masks)
-
-print("(No en train.py) Modelo reentrenado y guardado en:", model_path_all)
-
-
-
-print("training_losses:", training_losses)
-
-print("test_losses:", test_losses)
-"""
-path_train_losses = './train_losses.npy'
-path_test_losses = './test_losses.npy'
-
-np.save(path_train_losses, training_losses, allow_pickle=True)
-
-np.save(path_test_losses, test_losses, allow_pickle=True)
-"""
-
+                                                                
 
 exit()
 
-# Tengo que revisar si de verdad se están pasando las máscaras porque creo que con las transformaciones que hago se va todo a la mierda.
-
-# Mirar tamaño de imagen y tamaño de célula que se usa en el modelo
-
-# Mirar si puedo poner como variables que se igualan a la función los train losses y test losses. Mirar si puedo poner batch_size 24 

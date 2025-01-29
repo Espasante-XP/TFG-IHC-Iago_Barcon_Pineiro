@@ -67,7 +67,7 @@ else:
 texto_valor_dir_salida = valores_parametros_modelo[nombre_dir_salida]
 
 if(es_ruta_valida(texto_valor_dir_salida)):
-    output_base_dir = texto_valor_dir_salida #Path(texto_valor_dir_salida)
+    output_base_dir = texto_valor_dir_salida 
 else:
     print("Error, el valor introducido para el directorio de salida no es válido")
     exit()
