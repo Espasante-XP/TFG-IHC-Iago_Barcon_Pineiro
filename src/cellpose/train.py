@@ -542,11 +542,11 @@ def train_seg(net, train_data=None, train_labels=None, train_files=None,
             else:
                 filename0 = filename
             train_logger.info(f"saving network parameters to {filename0}")
-            print(f"Escrito por mi -> saving network parameters to {filename0}")
+            print(f"saving network parameters to {filename0}")
             net.save_model(filename0)
 
         # Todo nuevo hecho por mi    
-        archivo = 'variables.txt'
+        archivo = 'train_y_test_losses.txt'
         formato = 'Variable: {variable}, Valor: {valor}'
         valores_fallos = {}
 

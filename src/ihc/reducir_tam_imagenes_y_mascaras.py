@@ -1,15 +1,18 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-
 # Sirve para reducir el tamaño de las imágenes de la carpeta y subcarpetas que estén dentro del directorio indicado en root_resize_directory
+# Para modificar los directorios de entrada y salida, así como las extensiones de las imágenes, las extensiones de las máscaras y la escala 
+# hay que modificar el archivo ../../config/preprocesado.json
+
 
 import numpy as np
 import os
 import cv2
-from utils import obter_lista_ficheiros, es_num_positivo_string, es_extension_imagen_string, es_ruta_valida
+from utils import obter_lista_ficheiros, es_num_positivo_string, es_extension_imagen_string, es_ruta_valida, es_extension_mascara_string
 import json
 from pathlib import Path
+from cellpose import io
 
 
 scale = 1.0
@@ -87,11 +90,14 @@ else:
 
 texto_valor_ext_mascara = valores_parametros_modelo[nombre_ext_mascara]
 
-if(texto_valor_ext_mascara.lower().lstrip('.') == 'npy'): 
+if(es_extension_mascara_string(texto_valor_ext_mascara)): 
     if(texto_valor_ext_mascara.startswith('.')):
         ext_mascara = texto_valor_ext_mascara
     else:
         ext_mascara = '.' + texto_valor_ext_mascara
+    if(ext_mascara == ext_imagenes):
+        print("Error, el valor introducido para la extensión de las máscaras y las imágenes es el mismo")
+        exit()    
 else:
     print("Error, el valor introducido para la extensión de las máscaras no es válido")
     exit()
@@ -123,17 +129,23 @@ for archivos in mask_path:
 
     image_array = cv2.imread(image_path[index])
 
-    mask_array = np.load(archivos)
+    if(ext_mascara == '.npy'):
+        mask_array = np.load(archivos)
+    else:
+        mask_array = cv2.imread(archivos)
 
     resized_image, resized_mask = resize_image_and_mask(image_array, mask_array) 
 
-    np.save(output_path, resized_mask, allow_pickle=True) 
+    if(ext_mascara == '.npy'):
+        np.save(output_path, resized_mask, allow_pickle=True) 
+    else:
+        io.imsave(output_path, resized_mask)    
 
     relative_image_path = os.path.relpath(image_path[index], root_resize_directory)
 
     output_image_path = os.path.join(output_base_dir, relative_image_path)
 
-    cv2.imwrite(output_image_path, resized_image) 
+    io.imsave(output_image_path, resized_image) 
 
     index = index + 1
 
