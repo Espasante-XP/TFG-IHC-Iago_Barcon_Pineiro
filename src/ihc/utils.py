@@ -203,6 +203,10 @@ def create_ade20k_label_colormap():
         [92, 0, 255],
     ])
 
+def natural_sort_key(s):
+    # Extrae números de la cadena y los convierte a enteros para el ordenamiento
+    return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)]
+
 # Devuelve el path de todos los elementos que se encuentren dentro de la carpeta y subcarpetas
 # de la ruta que tengan la extensión dada
 def obter_lista_ficheiros(ruta_carpeta, extension):
@@ -212,7 +216,8 @@ def obter_lista_ficheiros(ruta_carpeta, extension):
             if nombre_archivo.endswith(extension):
                 ruta_imagen = os.path.join(carpeta_raiz, nombre_archivo)
                 variable_destino.append(ruta_imagen)
-    return variable_destino  
+    rutas_ordenadas = sorted(variable_destino, key=natural_sort_key)
+    return rutas_ordenadas  
 
 def es_numero(cadena):
     try:
@@ -230,7 +235,6 @@ def es_num_positivo_string(cadena: str) -> bool:
         numero = float(cadena)
     return numero > 0
 
-import os
 
 def es_ruta_valida(cadena: str) -> bool:
     try:
@@ -250,5 +254,20 @@ def es_extension_imagen_string(extension: str) -> bool:
     extension = extension.lower().lstrip('.')
     
     return extension in extensiones_imagen
+
+# Devuelve todas las carpetas que hay en el directorio terminadas en '/'
+def obtener_carpetas(directorio):
+    carpetas = [nombre + '/' for nombre in os.listdir(directorio) if os.path.isdir(os.path.join(directorio, nombre))]
+    return carpetas
+
+# Me la ha creado Copilot la lisat de máscaras, no sé si estará bien
+def es_extension_mascara_string(extension: str) -> bool:
+
+    extensiones_mascara = ['npy', 'png', 'jpg', 'jpeg', 'tif', 'tiff']
+    
+    extension = extension.lower().lstrip('.')
+    
+    return extension in extensiones_mascara
+
 
 
