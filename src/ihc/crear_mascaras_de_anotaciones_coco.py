@@ -7,7 +7,7 @@
 
 import numpy as np
 from cellpose import io
-from utils import obter_lista_ficheiros, obtener_carpetas, es_extension_imagen_string, es_alfanumerico_o_guion_bajo
+from utils import obter_lista_ficheiros, obtener_carpetas, es_extension_imagen_string
 from generate_seg_mask import obtener_izquierda_delimitador
 from cargar_anotaciones import cargar_anotaciones_coco_de_archivo
 import json 
@@ -82,6 +82,7 @@ else:
     print("Error, el valor introducido para el sufijo de las máscaras no es válido")
     exit()
 
+
 rutas_relativas_imagenes = obtener_carpetas(root_images_directory)
 
 index = 0
@@ -102,15 +103,15 @@ for ruta_carpeta in rutas_relativas_imagenes:
 
         ruta_imagenes = root_images_directory + ruta_carpeta
 
-        imagenes = obter_lista_ficheiros(ruta_imagenes, ext_imagenes)
+        coco, mascaras_multietiqueta, informacion_imagenes = cargar_anotaciones_coco_de_archivo(anotacion)
 
-        coco, mascaras_multietiqueta = cargar_anotaciones_coco_de_archivo(anotacion)
+        for imagen in informacion_imagenes:
 
-        for imagen in imagenes:
+            path_imagen = ruta_imagenes + imagen
 
             mask = mascaras_multietiqueta[index]
 
-            nombre_archivo_anotaciones = obtener_izquierda_delimitador(imagen, delim)
+            nombre_archivo_anotaciones = obtener_izquierda_delimitador(path_imagen, delim)
 
             nombre_archivo_anotaciones = nombre_archivo_anotaciones + sufijo_mascara
 
