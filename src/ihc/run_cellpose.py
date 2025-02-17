@@ -2,109 +2,48 @@
 # coding: utf-8
 
 
-import numpy as np
-import time, os, sys
-from urllib.parse import urlparse
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-#get_ipython().run_line_magic('matplotlib', 'inline')  #No sé si está bien, esto sale de exportar a python la linea %matplotlib inline, con cualquiera de las 2 líneas me protesta
-mpl.rcParams['figure.dpi'] = 300
-from cellpose import utils, io
 
 import matplotlib
 matplotlib.use('TKAgg')     #Como no se puede ver nada con Qt, he mirado en internet y con este me iría     Source: https://stackoverflow.com/questions/41994485/how-to-fix-could-not-find-or-load-the-qt-platform-plugin-windows-while-using-m
+import numpy as np
+from pathlib import Path
+from cellpose import io, models
+from cellpose.metrics import aggregated_jaccard_index, boundary_scores
+from generate_seg_mask import obtener_izquierda_delimitador, generate_seg_mask
+from utils import obter_lista_ficheiros, es_extension_imagen_string, es_numero
+from cargar_anotaciones import cargar_anotaciones_coco_de_archivo
+import json
+import gc
+import cv2
 
 
+scale = 0.25
+delim = "."
+path_folder_metrics = '../../resultados/'
 
 
+def resize_image(mask_array):
+   
+    height, width = mask_array.shape[:2]
 
-"""
-#Lo saqué de Bing
-import os
-from PIL import Image
+    new_width = int(width * scale)
+    new_height = int(height * scale)
 
-def cargar_imagenes(ruta_carpeta):
-    imagenes = []
-    for nombre_archivo in os.listdir(ruta_carpeta):
-        if nombre_archivo.endswith('.jpg') or nombre_archivo.endswith('.png'):  # Asegúrate de poner aquí todos los formatos que quieras cargar
-            ruta_imagen = os.path.join(ruta_carpeta, nombre_archivo)
-            imagen = Image.open(ruta_imagen)
-            imagenes.append(imagen)
-    return imagenes
-
-# Uso de la función
-imagenes = cargar_imagenes('ruta/a/tu/carpeta')
-"""
-
-imagenes = []
-
-#ruta_carpeta = '../Imagenes_para_entrenamiento/IL6_1' 
-
-ruta_carpeta = '../../Imagenes_para_entrenamiento/IL6_1/pruebas_modelos' # Pondría la ruta a imágenes de validación, pero la carpeta es un desastre
-
-for nombre_archivo in os.listdir(ruta_carpeta):
-    # Asegúrate de poner aquí todos los formatos que quieras cargar
-    if nombre_archivo.endswith('.jpg'): # or nombre_archivo.endswith('.png'): 
-        ruta_imagen = os.path.join(ruta_carpeta, nombre_archivo)
-        imagenes.append(ruta_imagen)
-
-print("\n")  
-print(imagenes)
-
-img2 = io.imread(imagenes[0])
+    resized_mask_array = cv2.resize(mask_array, (new_width, new_height), interpolation=cv2.INTER_NEAREST)
+    return resized_mask_array 
 
 
-""" Lo he comentado para no tener que cerrar todo el rato la ventana que se abre
+#Función para obtener el nombre de la imagen sin extensión a la que pertenecen las métricas 
+# de las imágenes que se encuentran en la carpeta IL6_1
+def create_metrics_name(coco, index): 
+    image_ids = coco.getImgIds()
+    image_info = coco.loadImgs(image_ids[index])
+    nombre_imagen = image_info[0]['file_name']
+    nombre_imagen_sin_extension = obtener_izquierda_delimitador(nombre_imagen, delim)
+    full_name_metrics_archive = nombre_imagen_sin_extension + ".json"
+    full_path = path_folder_metrics + full_name_metrics_archive
+    return full_path
 
-plt.figure(figsize=(2,2))
-plt.imshow(img2)
-plt.axis('off')
-plt.show()
-
-"""
-print("\n")
-print("Se tenía que crear una ventana con la imagen pero ya no lo hago") #Añadido tras comentar lo de arriba
-print("\n")
-
-
-
-
-
-# RUN CELLPOSE
-
-from cellpose import models, io
-
-# DEFINE CELLPOSE MODEL
-# model_type='cyto3' or model_type='nuclei'
-#model = models.Cellpose(gpu=False, model_type='cyto3')
-
-
-# path_modelo_reentrenado = './models/mi_modelo_reentrenado_todas_las_imagenes_prueba1'
-
-
-
-
-path_modelo_reentrenado = '../../models/prueba_mod_train_seg_imagenes_reescaladas_10epochs_8_batch_size'
-
-
-
-
-
-#path_modelo_reentrenado = '../models/mi_modelo_reentrenado_todas_las_imagenes_5000epochs'
-
-model = models.CellposeModel(gpu=True, model_type='cyto3')
-
-model.net.load_model(path_modelo_reentrenado)
-
-"""
-path_modelo_reentrenado = './models/mi_modelo_reentrenado_todas_las_imagenes_prueba1'
-
-model = models.Cellpose(gpu=True, model_type='cyto3') # Cambiado a gpu=True
-"""
-
-#model = models.Cellpose(gpu=True, model_type='cyto3', pretrained_model=path_modelo_reentrenado) # Cambiado a gpu=True
-
-#model = models.Cellpose(gpu=True, pretrained_size=path_modelo_reentrenado) # Cambiado a gpu=True y he quitado model_type='cyto3', no sé si está bien
 
 
 # define CHANNELS to run segementation on
@@ -120,85 +59,24 @@ model = models.Cellpose(gpu=True, model_type='cyto3') # Cambiado a gpu=True
 # or if you have different types of channels in each image
 #channels = [[2,3], [0,0], [0,0]]
 
-channels = [[0,0]] # A lo mejor cambiando algo aquí la cosa mejora
+#channels = [[0,0]] # A lo mejor cambiando algo aquí la cosa mejora
 
 
 
-from pycocotools.coco import COCO
-
-#annFile = 'IL6_1.json' # Cambiarlo por el que toca
-
-annFile = 'Anotaciones_coco/IL6_1/IL6_1_coco.json' 
-
-coco=COCO(annFile) # funciona
-
-category_ids = coco.getCatIds()
-num_categories = len(category_ids)
-
-# Load images for the given ids
-image_ids = coco.getImgIds()
-
-annotation_ids = []
-annotations = []
-
-binaryMasks = []
-
-#Se crean las máscaras vacías para las imágenes, hay tantas imágenes (image_ids) como anotaciones (annotation_ids)
-for id in image_ids:
-    img_info = coco.loadImgs(id)[0]
-    height, width = img_info['height'], img_info['width']
-    aux = np.zeros((height, width), dtype=np.uint8)
-    binaryMasks.append(aux)
-
-index = 0
-
-#Hago la creación de las máscaras en base a las anotaciones en otro bucle para no liarme
-for id in image_ids:
-    annotation = coco.getAnnIds(imgIds=id)
-    annotation_ids.append(annotation) #Revisar más tarde con calma porque creo que no hace falta que sea una lista
-    annotations = coco.loadAnns(annotation)
-    for ann_index, annotation in enumerate(annotations):
-        segmentation = annotation['segmentation']
-        mask = coco.annToMask(annotation)                #Esta es la función que me dijo Raquel de usar, la función annToMask
-        # Add the mask to the binary mask
-        binaryMasks[index][mask>0] = ann_index
-    index = index + 1
 
 
 
-""" Código base que funciona
-
-#Hago la creación de las máscaras en base a las anotaciones en otro bucle para no liarme
-for id in image_ids:
-    annotation = coco.getAnnIds(imgIds=id)
-    annotation_ids.append(annotation) #Revisar más tarde con calma porque creo que no hace falta que sea una lista
-    annotations = coco.loadAnns(annotation)
-    for annotation in annotations:
-        segmentation = annotation['segmentation']
-        mask = coco.annToMask(annotation)                #Esta es la función que me dijo Raquel de usar, la función annToMask
-        # Add the mask to the binary mask
-        binaryMasks[index] += mask
-    index = index + 1
-"""
 
 
-#Muestra todas las máscaras cargadas (funciona correctamente)
-"""
-for mask in binaryMasks:
-    # Display the binary mask
-    plt.figure(figsize=(10,10))
-    plt.imshow(mask, cmap='gray')
-    plt.axis('off')
-    plt.title('Binary Mask')
-    #plt.savefig('binary_mask_Image_1029.png', dpi=300) #El nombre ahora quedó obsoleto de cojones porque se miran todas y no solo una máscara
-    plt.show()
-"""
 
 
-import json
 
-#archivo_json = '../Valores_para_evaluacion/parametros_model_eval.json'
 archivo_json = '../../config/modelo_cellpose.json'
+
+nombre_dir_imagenes = 'path_imagenes'
+nombre_dir_modelo = 'path_modelo'
+nombre_ext_imagenes = 'extension_imagen'
+nombre_channels = 'channels'
 nombre_diameter = 'diameter'
 nombre_min_size = 'min_size'
 nombre_normalize = 'normalize'
@@ -209,14 +87,50 @@ nombre_cellprob_threshold = 'cellprob_threshold'
 
 archivo_abierto = open(archivo_json)
 
-# Obtener el valor del nombre
 valores_parametros_modelo = json.load(archivo_abierto)
-
-print("Valor de diameter en el json = ")
-print(valores_parametros_modelo[nombre_diameter])
 
 
 #Comprobaciones de que los valores cargados son correctos
+texto_valor_dir_imagenes = valores_parametros_modelo[nombre_dir_imagenes]
+
+if(Path(texto_valor_dir_imagenes).exists() and Path(texto_valor_dir_imagenes).is_dir()):
+    root_images_directory = texto_valor_dir_imagenes 
+else:
+    print("Error, el valor introducido para el directorio de imágenes no es válido")
+    exit()
+
+
+texto_valor_dir_modelo = valores_parametros_modelo[nombre_dir_modelo]
+
+if(Path(texto_valor_dir_modelo).exists()): # and Path(texto_valor_dir_modelo).is_dir()
+    model_file_path = texto_valor_dir_modelo 
+else:
+    print("Error, el valor introducido para el path al modelo no es válido")
+    exit()
+    # Aquí mejor hacer que si no se pilla uno correcto luego se salte esa parte del código y listo
+
+texto_valor_ext_imagenes = valores_parametros_modelo[nombre_ext_imagenes]
+
+if(es_extension_imagen_string(texto_valor_ext_imagenes)): 
+    if(texto_valor_ext_imagenes.startswith('.')):
+        ext_imagenes = texto_valor_ext_imagenes
+    else:
+        ext_imagenes = '.' + texto_valor_ext_imagenes    
+else:
+    print("Error, el valor introducido para la extensión de las imagenes no es válido")
+    exit()
+
+
+valor_channels = valores_parametros_modelo[nombre_channels]
+
+if(isinstance(valor_channels, list)): 
+
+    channels = valor_channels 
+else:
+    print(f"Error, el valor introducido para la variable {nombre_channels} no es válido")
+    exit()
+
+
 texto_valor_diameter = valores_parametros_modelo[nombre_diameter]
 
 if(texto_valor_diameter.isdigit()):
@@ -261,14 +175,6 @@ else:
     exit()
 
 
-def es_numero(cadena):
-    try:
-        float(cadena)
-        return True
-    except ValueError:
-        return False
-
-
 texto_valor_tile_overlap = valores_parametros_modelo[nombre_tile_overlap]
 
 if(es_numero(texto_valor_tile_overlap)):
@@ -302,27 +208,44 @@ else:
     exit()
 
 
+imagenes = []
+
+imagenes = obter_lista_ficheiros(root_images_directory, ext_imagenes)
 
 
-from generate_seg_mask import obtener_izquierda_delimitador
-from generate_seg_mask import generate_seg_mask
+#tengo que borrar esto de abajo
+
+path_modelo_reentrenado = '../../models/modelo-channels_[0, 1]-normalize_True-weight_decay_0.0001-learning_rate_0.01-batch_size_8-num_epochs_100-guardar_cada_10-min_train_masks_1'
+
+
+#path_modelo_reentrenado = '../models/mi_modelo_reentrenado_todas_las_imagenes_5000epochs'
+
+model = models.CellposeModel(gpu=True, model_type='cyto3')
+
+#model.net.load_model(path_modelo_reentrenado)
+
+model.net.load_model(model_file_path)
+
+
+
+sufijo_mascara = "-" + "diameter" + "_" + texto_valor_diameter + "-" + "min_size" + "_" + texto_valor_min_size + "-" + "normalize" + "_" + texto_valor_normalize + "-" + "niter" + "_" + texto_valor_niter + "-" + "tile_overlap" + "_" + texto_valor_tile_overlap + "-" + "flow_threshold" + "_" + texto_valor_flow_threshold + "-" + "cellprob_threshold" + "_" + texto_valor_cellprob_threshold
+
+sufijo_mascara = sufijo_mascara.replace('.', '--')
+
+#print("sufijo_mascara: ", sufijo_mascara)
+
 
 masks_pred = []
 
-indice = 0
+indice = 0    
+
 for filename in imagenes:
-    img2 = io.imread(filename)  # Cambié img por img2
+    imagen_cargada = io.imread(filename)  
     
     # Utiliza siempre el primer valor de channels
-    chan = channels[0]
+    #chan = channels[0]
 
-    """
-    masks, flows, styles, diams = model.eval(img2, diameter=valor_diameter, channels=chan, normalize=valor_normalize,
-             flow_threshold=valor_flow_threshold, cellprob_threshold=valor_cellprob_threshold,
-            min_size=valor_min_size, niter=valor_niter, tile_overlap=valor_tile_overlap, progress=True)
-    """
-
-    resultado = model.eval(img2, diameter=valor_diameter, channels=chan, normalize=valor_normalize,
+    resultado = model.eval(imagen_cargada, diameter=valor_diameter, channels=channels, normalize=valor_normalize,
              flow_threshold=valor_flow_threshold, cellprob_threshold=valor_cellprob_threshold,
             min_size=valor_min_size, niter=valor_niter, tile_overlap=valor_tile_overlap, progress=True)
 
@@ -333,16 +256,23 @@ for filename in imagenes:
 
     masks_pred.append(masks)
 
-    delim = "."
     nombreArchivo = obtener_izquierda_delimitador(filename, delim)
 
-    nombreArchivo = nombreArchivo + nombre_diameter + texto_valor_diameter #"diamerter350"
+    nombreArchivo = nombreArchivo + nombre_diameter + texto_valor_diameter
+
+    #nombreArchivo = nombreArchivo + sufijo_mascara
+
+    #print("nombreArchivo: ", nombreArchivo)
+
+    #print(f"Longitud del nombre del archivo: {len(str(nombreArchivo))}")
+
+    #exit()
 
     np.save(nombreArchivo, masks, allow_pickle=True)
 
     urlMascara = nombreArchivo + "_mask.png"
 
-    generate_seg_mask(img2, masks, urlMascara)
+    generate_seg_mask(imagen_cargada, masks, urlMascara)
     print(f"Se ha generado la máscara {indice}")
     indice = indice + 1
 
@@ -350,43 +280,55 @@ print("\n")
 print("Ha acabado la parte de generación de máscaras del modelo")
 print("\n")
 
+#exit()
 
 #Prueba eliminar variables 1
 
 del archivo_json, nombre_diameter, nombre_min_size, nombre_normalize, nombre_niter, nombre_tile_overlap, valor_normalize, valor_diameter
-del nombre_cellprob_threshold, nombre_flow_threshold, channels, valor_flow_threshold, valor_cellprob_threshold
-del valor_min_size, valor_niter, valor_tile_overlap, nombreArchivo, urlMascara, indice, imagenes, masks, img2
-#del filename,  flows, styles, diams, model, archivo_abierto
+del nombre_cellprob_threshold, nombre_flow_threshold, channels, valor_flow_threshold, valor_cellprob_threshold, valor_min_size
+del valor_niter, valor_tile_overlap, nombreArchivo, urlMascara, indice, imagenes, masks, imagen_cargada, archivo_abierto, valores_parametros_modelo
 
 if len(resultado) == 3: 
-    del filename, flows, styles, model, archivo_abierto, resultado 
+    del filename, flows, styles, model, resultado
 else: 
-    del filename, flows, styles, diams, model, archivo_abierto, resultado 
-
-from PIL import Image
-
-def resize_image(image_array, max_size=512):
-    # Convertir el array a una imagen PIL
-    img = Image.fromarray(image_array)
-    if img.mode not in ('L', 'RGB'):
-        img = img.convert('L')
-    img.thumbnail((max_size, max_size), Image.LANCZOS) #Image.ANTIALIAS   #Image.LANCZOS   #Image.BICUBIC 
-    #Flags que generan imágenes de menor calidad: Image.BILINEAR Image.NEAREST
-    # Convertir la imagen PIL redimensionada de vuelta a un array
-    resized_image_array = np.array(img)
-    return resized_image_array
+    del filename, flows, styles, diams, model, resultado 
 
 
-from cellpose.metrics import aggregated_jaccard_index
+nombre_anotaciones_coco = "anotaciones_coco"
+
+archivo_abierto = open(archivo_json)
+
+valores_parametros_modelo = json.load(archivo_abierto)
+
+# Cambiarlo para que se escoja un directorio en vez de el archivo y para que se pille el archivo .json de dentro del directorio
+texto_valor_anotaciones_coco = valores_parametros_modelo[nombre_anotaciones_coco]
+
+if(Path(texto_valor_anotaciones_coco).exists()): 
+    path_anotaciones_coco = texto_valor_anotaciones_coco 
+else:
+    print("Error, el valor introducido para el path al modelo no es válido")
+    exit()
+
+
+
+
+anotaciones_coco = 'anotaciones_coco_enviadas/IL6_1/IL6_1_coco.json' 
+
+
+
+
+coco, mascaras_multietiqueta, informacion_imagenes = cargar_anotaciones_coco_de_archivo(anotaciones_coco)
+
+
+
 
 resultados_jaccard = []
 
-
-for index in range(0, len(binaryMasks)):
+for index in range(0, len(mascaras_multietiqueta)):
     # Si no usas una lista dan errores de dividir entre nan o entre 0, no sé por que, es raro, 
     # pero si uso listas no pasa
     true_list_aux = []
-    true_list_aux.append(binaryMasks[index])
+    true_list_aux.append(mascaras_multietiqueta[index])
     pred_list_aux = []
     pred_list_aux.append(masks_pred[index])
     aux = aggregated_jaccard_index(true_list_aux, pred_list_aux)
@@ -404,7 +346,6 @@ for index in range(0, len(resultados_jaccard)):
 del true_list_aux, pred_list_aux, aux, index
 
 
-from cellpose.metrics import boundary_scores
 
 prueba_lista = []
 
@@ -418,39 +359,16 @@ prueba_lista.append(1)
 resized_masks_true = []
 resized_masks_pred = []
 
-# Con 128 funciona pero los valores son una puta mierda, si hay 4 en prueba_lista en boundary_scores
-# Con 200 funciona pero me llega la RAM al límite, si hay 4 en boundary_scores (en el viejo, creo)
-# Con 300 funciona parece que bien, aunque si hay algo más le cuesta a la memoria, si hay solo 1 en prueba_lista en boundary_scores
-# Con 275 va, si hay solo 1 en prueba_lista en boundary_scores
-tamanho_escala = 275
 
-for index in range(0, len(binaryMasks)):
-    aux = resize_image(binaryMasks[index], tamanho_escala) 
+for index in range(0, len(mascaras_multietiqueta)):
+    aux = resize_image(mascaras_multietiqueta[index]) 
     resized_masks_true.append(aux) 
-    aux = resize_image(masks_pred[index], tamanho_escala) 
+    aux = resize_image(masks_pred[index])
     resized_masks_pred.append(aux)             
 
 
-import gc
-
 gc.collect() # Forzar la recolección de basura
 
-#precision, recall, fscore = boundary_scores(resized_masks_true, resized_masks_pred, prueba_lista)
-
-def process_in_batches(masks_true, masks_pred, prueba_lista, batch_size):
-    precision_list, recall_list, fscore_list = [], [], []
-    for i in range(0, len(masks_true), batch_size):
-        batch_true = masks_true[i:i + batch_size]
-        batch_pred = masks_pred[i:i + batch_size]
-        precision, recall, fscore = boundary_scores(batch_true, batch_pred, prueba_lista)
-        precision_list.append(precision)
-        recall_list.append(recall)
-        fscore_list.append(fscore)
-        gc.collect() # Forzar la recolección de basura
-
-    return np.mean(precision_list), np.mean(recall_list), np.mean(fscore_list)
-
-batch_size = 1000  # Ajusta el tamaño del lote según tu memoria disponible
 
 precision = []
 recall = []
@@ -458,7 +376,6 @@ fscore = []
 
 #Bucle para generar las listas de resultados de las máscaras de la función boundary_scores
 for index in range(0, len(resized_masks_true)):
-    #Si no usas una lista parece que va mal
     true_list_aux = []
     true_list_aux.append(resized_masks_true[index])
     pred_list_aux = []
@@ -466,15 +383,6 @@ for index in range(0, len(resized_masks_true)):
     gc.collect() # Forzar la recolección de basura
     aux1, aux2, aux3 = boundary_scores(true_list_aux, pred_list_aux, prueba_lista)
 
-
-    #true_list_aux2 = []
-    #true_list_aux2.append(binaryMasks[index])
-    #pred_list_aux2 = []
-    #pred_list_aux2.append(masks_pred[index])
-    #aux1, aux2, aux3 = process_in_batches(true_list_aux2, pred_list_aux2, prueba_lista, batch_size)
-    
-    
-    #precision, recall, fscore = boundary_scores(resized_masks_true, resized_masks_pred, prueba_lista)
     precision.append(aux1)
     recall.append(aux2)
     fscore.append(aux3)
@@ -482,42 +390,20 @@ for index in range(0, len(resized_masks_true)):
     gc.collect() # Forzar la recolección de basura
 
 
-#Función para crear el nombre del archivo donde se guardan las métricas de la imagen
-def create_name_metrics_archive(full_name_metrics_archive):
-    path_folder_metrics = '../../resultados/'
-    full_path = path_folder_metrics + full_name_metrics_archive
-    return full_path
 
 
-#Función para obtener el nombre de la imagen sin extensión a la que pertenecen las métricas 
-# de las imágenes que se encuentran en la carpeta IL6_1
-def obtain_image_name(index):
-    #Estas son las líneas de más arriba de donde sale la variable image_ids
-    #from pycocotools.coco import COCO
-    #annFile = 'IL6_1_prueba.json' 
-    #coco=COCO(annFile) 
-    #image_ids = coco.getImgIds()
-    image_id = image_ids[index]  
-    image_info = coco.loadImgs(image_id)
-    #image_info[0]['file_name']
-    nombre_imagen = image_info[0]['file_name']
-
-    from generate_seg_mask import obtener_izquierda_delimitador
-    delim = "."
-    nombre_imagen_sin_extension = obtener_izquierda_delimitador(nombre_imagen, delim)
-    archivo_json = nombre_imagen_sin_extension + ".json"
-    return archivo_json
 
 
 #Creo que voy a hacer un diccionario por imagen, siguiendo el esquema de abajo, el nombre del 
 # diccionario exportado será el mismo que el del archivo .npy supongo, revisar con calma.
 #El diccionario supongo que lo haré del tipo nombre (de la imagen), jaccard -> valor, precision -> valor, recall -> valor y F-score -> valor
 
+image_ids = coco.getImgIds()
 
 #Bucle para crear los diccionarios, guardar los datos de los diccionarios en archivos .json
-for index in range(0, len(binaryMasks)):
-    nombre_imagen = obtain_image_name(index)
-    path_metricas = create_name_metrics_archive(nombre_imagen)
+for index in range(0, len(mascaras_multietiqueta)):
+    image_info = coco.loadImgs(image_ids[index])
+    path_metricas = create_metrics_name(coco, index)
     data = {}
     with open(path_metricas, 'w') as file: 
         # Escribir el diccionario vacío en el archivo
