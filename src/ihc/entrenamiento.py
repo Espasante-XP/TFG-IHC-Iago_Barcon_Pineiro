@@ -93,11 +93,25 @@ else:
 
 valor_channels = valores_parametros_modelo[nombre_channels]
 
-if(isinstance(valor_channels, list)): 
-
-    channels = valor_channels 
+if isinstance(valor_channels, list):
+    # Comprobar si es una lista simple o una lista de listas
+    if all(isinstance(item, list) for item in valor_channels):  # Si es una lista de listas
+        for sublista in valor_channels:
+            if not (isinstance(sublista, list) and len(sublista) == 2 and 
+                    all(isinstance(x, (int, float)) and 0 <= x <= 3 for x in sublista)):
+                print(f"Error, el valor introducido para la variable {nombre_channels} no es válido")
+                exit()
+        es_lista_de_listas = True
+    else:  # Si es una lista simple
+        if not (len(valor_channels) == 2 and 
+                all(isinstance(x, (int, float)) and 0 <= x <= 3 for x in valor_channels)):
+            print(f"Error, el valor introducido para la variable {nombre_channels} no es válido")
+            exit()
+    # Si pasa todas las validaciones, asignar el valor
+    channels = valor_channels
+    es_lista_de_listas = False
 else:
-    print(f"Error, el valor introducido para la variable {nombre_channels} no es válido")
+    print(f"Error, el valor introducido para la variable {nombre_channels} no es una lista")
     exit()
 
 
@@ -208,17 +222,24 @@ test_labels_files = []
 test_labels_files = obter_lista_ficheiros(root_validation_directory, ext_mascara)
 
 # Comprobación de que hay el mismo número de imágenes y máscaras tanto en entrenamiento como en validación
-assert len(train_files) == len(train_labels_files), "El número de archivos de entrenamiento no coincide con el número de máscaras."
+try:
+    assert len(train_files) == len(train_labels_files), "El número de archivos de entrenamiento no coincide con el número de máscaras."
 
-assert len(test_files) == len(test_labels_files), "El número de archivos de validación no coincide con el número de máscaras."
+    assert len(test_files) == len(test_labels_files), "El número de archivos de validación no coincide con el número de máscaras."
 
+    if(es_lista_de_listas):
+        assert len(train_files) == len(channels), "El número de canales no coincide con el número de archivos de entrenamiento."
+        assert len(test_files) == len(channels), "El número de canales no coincide con el número de archivos de validación."
+except Exception as e:
+    print(f"Error: {e}")
+    exit()
 
 if(ext_mascara == '.npy'):
     train_labels = [np.load(fp).astype(np.int32) for fp in train_labels_files] 
 
     test_labels = [np.load(fp).astype(np.int32) for fp in test_labels_files] 
 else:
-    train_labels = [io.imread(fp) for fp in train_labels_files] 
+    train_labels = [io.imread(fp) for fp in train_labels_files] # No es correcto cargar las máscaras así porque no son RGB, creo
 
     test_labels = [io.imread(fp) for fp in test_labels_files] 
 
