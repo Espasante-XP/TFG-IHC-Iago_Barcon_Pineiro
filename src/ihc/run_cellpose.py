@@ -15,6 +15,7 @@ from cargar_anotaciones import cargar_anotaciones_coco_de_archivo
 import json
 import gc
 import cv2
+import os
 
 
 scale = 0.25
@@ -32,10 +33,10 @@ def resize_image(mask_array):
     resized_mask_array = cv2.resize(mask_array, (new_width, new_height), interpolation=cv2.INTER_NEAREST)
     return resized_mask_array 
 
-
+""" 
 #Función para obtener el nombre de la imagen sin extensión a la que pertenecen las métricas 
 # de las imágenes que se encuentran en la carpeta IL6_1
-def create_metrics_name(coco, index): 
+def create_metrics_name(directory_path, coco, index): 
     image_ids = coco.getImgIds()
     image_info = coco.loadImgs(image_ids[index])
     nombre_imagen = image_info[0]['file_name']
@@ -43,7 +44,64 @@ def create_metrics_name(coco, index):
     full_name_metrics_archive = nombre_imagen_sin_extension + ".json"
     full_path = path_folder_metrics + full_name_metrics_archive
     return full_path
+"""
 
+
+""" 
+def create_metrics_name(directory_path, coco, index): # , path_folder_metrics
+    # Obtener los IDs de las imágenes
+    image_ids = coco.getImgIds()
+    # Cargar información de la imagen correspondiente al índice dado
+    image_info = coco.loadImgs(image_ids[index])
+    nombre_imagen = image_info[0]['file_name']
+    
+    # Eliminar la extensión del nombre de la imagen
+    nombre_imagen_sin_extension, _ = os.path.splitext(nombre_imagen)
+    
+    # Obtener el nombre de la carpeta final en directory_path
+    folder_name = os.path.basename(os.path.normpath(directory_path))
+    
+    # Crear la ruta completa para la nueva carpeta dentro de path_folder_metrics
+    metrics_folder_path = os.path.join(path_folder_metrics, folder_name)
+    
+    # Asegurarse de que la carpeta exista, si no, crearla
+    os.makedirs(metrics_folder_path, exist_ok=True)
+    
+    # Construir el nombre del archivo JSON
+    full_name_metrics_archive = nombre_imagen_sin_extension + ".json"
+    
+    # Construir la ruta completa para el archivo JSON
+    full_path = os.path.join(metrics_folder_path, full_name_metrics_archive)
+    
+    return full_path
+"""
+
+
+
+def create_metrics_name(directory_path):
+    # Extraer el nombre del archivo y su directorio
+    nombre_imagen = os.path.basename(directory_path)  # Nombre del archivo (con extensión)
+    directorio_imagen = os.path.dirname(directory_path)  # Directorio completo donde está la imagen
+    
+    # Obtener el nombre del directorio final
+    folder_name = os.path.basename(directorio_imagen)
+    
+    # Eliminar la extensión del nombre de la imagen
+    nombre_imagen_sin_extension, _ = os.path.splitext(nombre_imagen)
+    
+    # Crear la ruta completa para la nueva carpeta dentro de path_folder_metrics
+    metrics_folder_path = os.path.join(path_folder_metrics, folder_name)
+    
+    # Asegurarse de que la carpeta exista, si no, crearla
+    os.makedirs(metrics_folder_path, exist_ok=True)
+    
+    # Construir el nombre del archivo JSON
+    full_name_metrics_archive = nombre_imagen_sin_extension + ".json"
+    
+    # Construir la ruta completa para el archivo JSON
+    full_path = os.path.join(metrics_folder_path, full_name_metrics_archive)
+    
+    return full_path
 
 
 # define CHANNELS to run segementation on
@@ -92,12 +150,19 @@ valores_parametros_modelo = json.load(archivo_abierto)
 
 #Comprobaciones de que los valores cargados son correctos
 texto_valor_dir_imagenes = valores_parametros_modelo[nombre_dir_imagenes]
-
-if(Path(texto_valor_dir_imagenes).exists() and Path(texto_valor_dir_imagenes).is_dir()):
-    root_images_directory = texto_valor_dir_imagenes 
+if(isinstance(texto_valor_dir_imagenes, list)): # Si es una lista de directorios, se comrpueba que todos los directorios valgan
+    for directorio in texto_valor_dir_imagenes:
+        if(not Path(directorio).exists() or not Path(directorio).is_dir()):
+            print("Error, el valor introducido para el directorio de imágenes no es válido")
+            exit()
+    root_images_directory = texto_valor_dir_imagenes
+    print("root_images_directory: ", root_images_directory)        
 else:
-    print("Error, el valor introducido para el directorio de imágenes no es válido")
-    exit()
+    if(Path(texto_valor_dir_imagenes).exists() and Path(texto_valor_dir_imagenes).is_dir()):
+        root_images_directory = texto_valor_dir_imagenes 
+    else:
+        print("Error, el valor introducido para el directorio de imágenes no es válido")
+        exit()
 
 
 texto_valor_dir_modelo = valores_parametros_modelo[nombre_dir_modelo]
@@ -208,9 +273,34 @@ else:
     exit()
 
 
+print("len(root_images_directory): ", len(root_images_directory))
+
 imagenes = []
 
-imagenes = obter_lista_ficheiros(root_images_directory, ext_imagenes)
+#imagenes = obter_lista_ficheiros(root_images_directory, ext_imagenes)
+
+for directorio in root_images_directory:
+    imagenes.extend(obter_lista_ficheiros(directorio, ext_imagenes))
+
+print("len(imagenes): ", len(imagenes))
+
+imagenes2 = obter_lista_ficheiros(root_images_directory[0], ext_imagenes)
+
+
+print("len(imagenes2): ", len(imagenes2))
+
+
+#exit()
+
+
+
+
+
+
+
+
+
+
 
 
 #tengo que borrar esto de abajo
@@ -224,7 +314,11 @@ model = models.CellposeModel(gpu=True, model_type='cyto3')
 
 #model.net.load_model(path_modelo_reentrenado)
 
-model.net.load_model(model_file_path)
+try:
+    model.net.load_model(model_file_path)
+except Exception as e:
+    print(f"Error: {e}")
+    exit()
 
 
 
@@ -239,7 +333,10 @@ masks_pred = []
 
 indice = 0    
 
+sufijo_mascara_viejo = "_" + nombre_diameter + texto_valor_diameter
+
 for filename in imagenes:
+#for filename in imagenes2:
     imagen_cargada = io.imread(filename)  
     
     # Utiliza siempre el primer valor de channels
@@ -258,7 +355,7 @@ for filename in imagenes:
 
     nombreArchivo = obtener_izquierda_delimitador(filename, delim)
 
-    nombreArchivo = nombreArchivo + nombre_diameter + texto_valor_diameter
+    nombreArchivo = nombreArchivo + sufijo_mascara_viejo # nombre_diameter + texto_valor_diameter
 
     #nombreArchivo = nombreArchivo + sufijo_mascara
 
@@ -284,9 +381,9 @@ print("\n")
 
 #Prueba eliminar variables 1
 
-del archivo_json, nombre_diameter, nombre_min_size, nombre_normalize, nombre_niter, nombre_tile_overlap, valor_normalize, valor_diameter
+del nombre_diameter, nombre_min_size, nombre_normalize, nombre_niter, nombre_tile_overlap, valor_normalize, valor_diameter
 del nombre_cellprob_threshold, nombre_flow_threshold, channels, valor_flow_threshold, valor_cellprob_threshold, valor_min_size
-del valor_niter, valor_tile_overlap, nombreArchivo, urlMascara, indice, imagenes, masks, imagen_cargada, archivo_abierto, valores_parametros_modelo
+del valor_niter, valor_tile_overlap, nombreArchivo, urlMascara, indice, masks, imagen_cargada, archivo_abierto, valores_parametros_modelo
 
 if len(resultado) == 3: 
     del filename, flows, styles, model, resultado
@@ -294,62 +391,160 @@ else:
     del filename, flows, styles, diams, model, resultado 
 
 
-nombre_anotaciones_coco = "anotaciones_coco"
+"""
+nombre_path_anotaciones_coco = "path_anotaciones_coco"
 
 archivo_abierto = open(archivo_json)
 
 valores_parametros_modelo = json.load(archivo_abierto)
+"""
 
-# Cambiarlo para que se escoja un directorio en vez de el archivo y para que se pille el archivo .json de dentro del directorio
-texto_valor_anotaciones_coco = valores_parametros_modelo[nombre_anotaciones_coco]
 
-if(Path(texto_valor_anotaciones_coco).exists()): 
-    path_anotaciones_coco = texto_valor_anotaciones_coco 
-else:
-    print("Error, el valor introducido para el path al modelo no es válido")
-    exit()
+# Cambiar lo de cargar las anotaciones para que ya no haga falta pasar el archivo .json, sino que se pille de la carpeta
+# que se le pase como parámetro del path de imágenes, ya que en esa carpeta deben estar las imágenes y las máscaras 
+# ground_truth con el mismo nombre que las imágenes en formato npy
 
 
 
-
-anotaciones_coco = 'anotaciones_coco_enviadas/IL6_1/IL6_1_coco.json' 
-
+#path_anotaciones_coco = root_images_directory[0]
 
 
 
-coco, mascaras_multietiqueta, informacion_imagenes = cargar_anotaciones_coco_de_archivo(anotaciones_coco)
+#print("type(path_anotaciones_coco): ", type(path_anotaciones_coco))
+
+""" 
+# Tienen que pillarse solo los elementos que tengan el sufijo _ground_truth, mirar de modificar la función copiando la de borrar los archivos
+lista_anotaciones_coco = obter_lista_ficheiros(path_anotaciones_coco, '.npy', "_ground_truth")
+"""
+
+path_anotaciones_coco = root_images_directory
+
+print("He cambiado el path_anotaciones_coco a la lista completa de anotaciones a ver si eso lo arregla")
+
+print("path_anotaciones_coco: ", path_anotaciones_coco)
+
+print("type(path_anotaciones_coco): ", type(path_anotaciones_coco))
+
+print("len(path_anotaciones_coco): ", len(path_anotaciones_coco))
+
+#exit()
+
+lista_anotaciones_mascaras = []
+
+# Tengo que hacer que el sufijo de las máscaras se obtenga del archivo json para que no sea tan rígido (porque el sufijo se puede poner al crear las máscaras)
+for directorio in path_anotaciones_coco:
+    lista_anotaciones_mascaras.extend(obter_lista_ficheiros(directorio, '.npy', "_ground_truth")) 
+    #print(f"iteracion {index} -> lista_anotaciones_mascaras: ", lista_anotaciones_mascaras)
+    #index = index + 1
+
+# Tengo que hacer un cribado o algo para seleccionar solo las anotaciones que tengan el sufijo de la máscara que he creado antes
+# y que tengan el mismo nombre que la imagen a la que pertenecen, para poder compararlas en las métricas
+
+#print("lista_anotaciones_mascaras: ", lista_anotaciones_mascaras)
+print("len(lista_anotaciones_mascaras): ", len(lista_anotaciones_mascaras))
+print("type(lista_anotaciones_mascaras): ", type(lista_anotaciones_mascaras))
+
+
+#for img, mask in zip(imagenes, lista_anotaciones_mascaras):
+#    print(f"Imagen: {img}, Anotación_npy: {mask}")
+
+#exit()
+
+#anotaciones_reescaladas_cargadas = [np.load(anotacion) for anotacion in lista_anotaciones_mascaras]
+
+#print("Se han cargado todas las anotaciones")
+
+#print("len(anotaciones_reescaladas_cargadas): ", len(anotaciones_reescaladas_cargadas))
+
+#print("len(masks_pred): ", len(masks_pred))
+
+
+
+#print("lista_anotaciones_mascaras: ", lista_anotaciones_mascaras)
+
+#print("len(lista_anotaciones_mascaras): ", len(lista_anotaciones_mascaras))
+
+#print("Termino antes de tiempo")
+
+#exit()
+
+#anotaciones_coco = 'anotaciones_coco_enviadas/IL6_1/IL6_1_coco.json' 
+
+
+#print("path_anotaciones_coco: ", path_anotaciones_coco)
+
+# Tengo que quitarlo cuando cambie lo otro
+#coco, mascaras_multietiqueta, informacion_imagenes = cargar_anotaciones_coco_de_archivo(anotaciones_coco) 
+
+#coco, mascaras_multietiqueta, informacion_imagenes = cargar_anotaciones_coco_de_archivo(path_anotaciones_coco)
+
+
+# Tengo que cargar las máscaras ground_truth reescaladas que he guardado como archivos npy
+
+
+
+
+
+
 
 
 
 
 resultados_jaccard = []
 
-for index in range(0, len(mascaras_multietiqueta)):
+""" 
+for index in range(0, len(anotaciones_reescaladas_cargadas)):
     # Si no usas una lista dan errores de dividir entre nan o entre 0, no sé por que, es raro, 
     # pero si uso listas no pasa
     true_list_aux = []
-    true_list_aux.append(mascaras_multietiqueta[index])
+    #true_list_aux.append(mascaras_multietiqueta[index]) # No vale, tengo que poner la máscara reducida que he creado antes
+    true_list_aux.append(anotaciones_reescaladas_cargadas[index])
     pred_list_aux = []
-    pred_list_aux.append(masks_pred[index])
+    pred_list_aux.append(masks_pred[index]) 
+    aux = aggregated_jaccard_index(true_list_aux, pred_list_aux)
+    resultados_jaccard.append(aux)
+"""
+
+#for index in range(0, len(anotaciones_reescaladas_cargadas)):
+for mascara_pred, ground_truth in zip(masks_pred, lista_anotaciones_mascaras):    
+    # Si no usas una lista dan errores de dividir entre nan o entre 0, no sé por que, es raro, 
+    # pero si uso listas no pasa
+    true_list_aux = []
+    #true_list_aux.append(mascaras_multietiqueta[index]) # No vale, tengo que poner la máscara reducida que he creado antes
+    true_list_aux.append(np.load(ground_truth))
+    #true_list_aux.append(anotaciones_reescaladas_cargadas[index])
+    pred_list_aux = []
+    pred_list_aux.append(mascara_pred) 
     aux = aggregated_jaccard_index(true_list_aux, pred_list_aux)
     resultados_jaccard.append(aux)
 
+print("len(resultados_jaccard): ", len(resultados_jaccard))
+
 for index in range(0, len(resultados_jaccard)):
-    print(f"Resultados jaccard {index}")
+    print(f"Resultados jaccard {index}: {imagenes[index]}")
     print(resultados_jaccard[index])
-    print("\n")
+    #print("\n")
 
 #resultado = aggregated_jaccard_index(resized_masks_true, resized_masks_pred)
 
+print("Se realizaron las anotaciones jaccard de las imágenes")
+
+#exit()
 
 #Prueba eliminar variables 2
-del true_list_aux, pred_list_aux, aux, index
+del archivo_json, true_list_aux, pred_list_aux, aux, index
 
 
 
-prueba_lista = []
 
-prueba_lista.append(1)
+#exit()
+
+
+
+
+#prueba_lista = []
+
+#prueba_lista.append(1)
 
 #prueba_lista.append(2)
 
@@ -359,27 +554,34 @@ prueba_lista.append(1)
 resized_masks_true = []
 resized_masks_pred = []
 
-
+""" 
 for index in range(0, len(mascaras_multietiqueta)):
     aux = resize_image(mascaras_multietiqueta[index]) 
     resized_masks_true.append(aux) 
     aux = resize_image(masks_pred[index])
     resized_masks_pred.append(aux)             
-
+"""
 
 gc.collect() # Forzar la recolección de basura
 
-
+"""
 precision = []
 recall = []
 fscore = []
 
-#Bucle para generar las listas de resultados de las máscaras de la función boundary_scores
-for index in range(0, len(resized_masks_true)):
+#Bucle para generar las listas de resultados de las máscaras de la función boundary_scores  
+#for index in range(0, len(resized_masks_true)):
+for index in range(0, len(mascaras_multietiqueta)):
     true_list_aux = []
-    true_list_aux.append(resized_masks_true[index])
+    #true_list_aux.append(mascaras_multietiqueta[index]) # No vale, tengo que poner la máscara reducida que he creado antes
+    true_list_aux.append(anotaciones_reescaladas_cargadas[index])
     pred_list_aux = []
-    pred_list_aux.append(resized_masks_pred[index])
+    pred_list_aux.append(masks_pred[index])
+
+    #true_list_aux = []
+    #true_list_aux.append(resized_masks_true[index])
+    #pred_list_aux = []
+    #pred_list_aux.append(resized_masks_pred[index])
     gc.collect() # Forzar la recolección de basura
     aux1, aux2, aux3 = boundary_scores(true_list_aux, pred_list_aux, prueba_lista)
 
@@ -388,22 +590,58 @@ for index in range(0, len(resized_masks_true)):
     fscore.append(aux3)
     print(f"ha acabado la evaluación de la máscara {index}")
     gc.collect() # Forzar la recolección de basura
+    # for mascara_pred, ground_truth in zip(masks_pred, lista_anotaciones_mascaras):
+ """
+
+prueba_lista = []
+
+prueba_lista.append(1)
+
+precision = []
+recall = []
+fscore = []
+
+index = 0
+#Bucle para generar las listas de resultados de las máscaras de la función boundary_scores  
+#for index in range(0, len(resized_masks_true)):
+#for index in range(0, len(mascaras_multietiqueta)):
+for mascara_pred, ground_truth in zip(masks_pred, lista_anotaciones_mascaras):    
+    true_list_aux = []
+    #true_list_aux.append(mascaras_multietiqueta[index]) # No vale, tengo que poner la máscara reducida que he creado antes
+    #true_list_aux.append(anotaciones_reescaladas_cargadas[index])
+    true_list_aux.append(np.load(ground_truth))
+    pred_list_aux = []
+    #pred_list_aux.append(masks_pred[index])
+    pred_list_aux.append(mascara_pred) 
+
+    gc.collect() # Forzar la recolección de basura
+    aux1, aux2, aux3 = boundary_scores(true_list_aux, pred_list_aux, prueba_lista)
+
+    precision.append(aux1)
+    recall.append(aux2)
+    fscore.append(aux3)
+    print(f"ha acabado la evaluación de la máscara {index}: {imagenes[index]}")
+    index = index + 1
+    gc.collect() # Forzar la recolección de basura
 
 
+print("Se han generado todas las métricas boundary_scores de las máscaras")
 
-
-
+#exit()
 
 #Creo que voy a hacer un diccionario por imagen, siguiendo el esquema de abajo, el nombre del 
 # diccionario exportado será el mismo que el del archivo .npy supongo, revisar con calma.
 #El diccionario supongo que lo haré del tipo nombre (de la imagen), jaccard -> valor, precision -> valor, recall -> valor y F-score -> valor
 
-image_ids = coco.getImgIds()
+#image_ids = coco.getImgIds()
 
+""" 
 #Bucle para crear los diccionarios, guardar los datos de los diccionarios en archivos .json
 for index in range(0, len(mascaras_multietiqueta)):
     image_info = coco.loadImgs(image_ids[index])
-    path_metricas = create_metrics_name(coco, index)
+    path_metricas = create_metrics_name(path_anotaciones_coco, coco, index) # Tengo que cambiarlo para que se coja solo el nombre de la anotación 
+                                                        # correspondiente a la imagen sin _ground_truth.npy o algo así
+    #path_metricas = create_metrics_name(path_anotaciones_coco, coco, index)                                                    
     data = {}
     with open(path_metricas, 'w') as file: 
         # Escribir el diccionario vacío en el archivo
@@ -416,6 +654,26 @@ for index in range(0, len(mascaras_multietiqueta)):
     with open(path_metricas, 'w') as file:
     # Escribir el diccionario en el archivo
         json.dump(data_serializable, file)
+"""
+
+#Bucle para crear los diccionarios, guardar los datos de los diccionarios en archivos .json
+index = 0
+for imagen in imagenes:
+    path_metricas = create_metrics_name(imagen)
+    data = {}
+    with open(path_metricas, 'w') as file: 
+        # Escribir el diccionario vacío en el archivo
+        json.dump(data, file)
+    data['jaccard'] = resultados_jaccard[index]
+    data['precision'] = precision[index]
+    data['recall'] = recall[index]
+    data['fscore'] = fscore[index]
+    data_serializable = {k: v.tolist() if isinstance(v, np.ndarray) else v for k, v in data.items()}
+    with open(path_metricas, 'w') as file:
+    # Escribir el diccionario en el archivo
+        json.dump(data_serializable, file)
+    index = index + 1    
+
 
 print("\n")
 print("Se han creado todos los archivos JSON")

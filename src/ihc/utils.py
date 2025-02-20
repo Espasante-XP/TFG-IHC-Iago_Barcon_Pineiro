@@ -203,9 +203,11 @@ def create_ade20k_label_colormap():
         [92, 0, 255],
     ])
 
+""" 
+# Es lo mismo que el otro pero peor, el final del otro seica funciona mejor
 def natural_sort_key(s):
     # Extrae números de la cadena y los convierte a enteros para el ordenamiento
-    return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)]
+    return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)] 
 
 # Devuelve el path de todos los elementos que se encuentren dentro de la carpeta y subcarpetas
 # de la ruta que tengan la extensión dada
@@ -218,6 +220,47 @@ def obter_lista_ficheiros(ruta_carpeta, extension):
                 variable_destino.append(ruta_imagen)
     rutas_ordenadas = sorted(variable_destino, key=natural_sort_key)
     return rutas_ordenadas  
+"""
+
+def natural_sort_key(s):
+    """
+    Función auxiliar para ordenar alfanuméricamente.
+    """
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+
+def obter_lista_ficheiros(ruta_carpeta, extension, suffix_to_filter=None):
+    """
+    Obtiene una lista de rutas de archivos dentro de una carpeta y sus subcarpetas,
+    filtrando por extensión y, opcionalmente, por sufijo.
+
+    :param ruta_carpeta: Ruta de la carpeta raíz donde buscar archivos.
+    :param extension: Extensión de los archivos a seleccionar (por ejemplo, '.png').
+    :param suffix_to_filter: Sufijo opcional para filtrar archivos específicos. 
+                             Si es None o una cadena vacía, no se aplica filtro adicional.
+    :return: Lista de rutas de archivos ordenadas alfanuméricamente.
+    """
+    variable_destino = []
+
+    # Recorrer la carpeta raíz y sus subcarpetas
+    for carpeta_raiz, _, archivos in os.walk(ruta_carpeta): 
+        for nombre_archivo in archivos:
+            # Separar el nombre del archivo y su extensión
+            nombre_base, ext = os.path.splitext(nombre_archivo)
+            
+            # Verificar si el archivo tiene la extensión deseada
+            if ext.lower() == extension.lower():
+                # Si se proporcionó un sufijo y el nombre base del archivo termina con ese sufijo
+                if suffix_to_filter and nombre_base.endswith(suffix_to_filter):
+                    ruta_imagen = os.path.join(carpeta_raiz, nombre_archivo)
+                    variable_destino.append(ruta_imagen)
+                # Si no se proporcionó sufijo o el sufijo es una cadena vacía, seleccionar todos los archivos con la extensión
+                elif suffix_to_filter is None or suffix_to_filter == "":
+                    ruta_imagen = os.path.join(carpeta_raiz, nombre_archivo)
+                    variable_destino.append(ruta_imagen)
+
+    # Ordenar las rutas alfanuméricamente
+    rutas_ordenadas = sorted(variable_destino, key=natural_sort_key)
+    return rutas_ordenadas
 
 def es_numero(cadena):
     try:

@@ -1,17 +1,16 @@
 {
 
-    "path_imagenes":"../../Imagenes_para_entrenamiento/IL6_1/pruebas_modelos",
+    "path_imagenes":["../../Imagenes_validacion_reescalado2", "../../Imagenes_entrenamiento_reescalado2"],
     "path_modelo":"../../models/modelo-channels_[0, 1]-normalize_True-weight_decay_0.0001-learning_rate_0.01-batch_size_8-num_epochs_1000-guardar_cada_10-min_train_masks_1",
     "extension_imagen":".jpg",
     "channels":[0,0],
-    "diameter":"300",
-    "min_size":"100",
+    "diameter":"50",
+    "min_size":"20",
     "normalize":"True",
     "niter":"None",
     "tile_overlap":"0.3",
     "flow_threshold":"0.6",
     "cellprob_threshold":"-0.5",
-    "anotaciones_coco":"anotaciones_coco_enviadas/IL6_1/IL6_1_coco.json"
-
+    "sufijo_mascara":"ground_truth"
 
 }
