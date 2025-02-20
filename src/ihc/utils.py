@@ -203,24 +203,6 @@ def create_ade20k_label_colormap():
         [92, 0, 255],
     ])
 
-""" 
-# Es lo mismo que el otro pero peor, el final del otro seica funciona mejor
-def natural_sort_key(s):
-    # Extrae números de la cadena y los convierte a enteros para el ordenamiento
-    return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)] 
-
-# Devuelve el path de todos los elementos que se encuentren dentro de la carpeta y subcarpetas
-# de la ruta que tengan la extensión dada
-def obter_lista_ficheiros(ruta_carpeta, extension):
-    variable_destino = []
-    for carpeta_raiz, _, archivos in os.walk(ruta_carpeta):
-        for nombre_archivo in archivos:
-            if nombre_archivo.endswith(extension):
-                ruta_imagen = os.path.join(carpeta_raiz, nombre_archivo)
-                variable_destino.append(ruta_imagen)
-    rutas_ordenadas = sorted(variable_destino, key=natural_sort_key)
-    return rutas_ordenadas  
-"""
 
 def natural_sort_key(s):
     """
@@ -261,6 +243,7 @@ def obter_lista_ficheiros(ruta_carpeta, extension, suffix_to_filter=None):
     # Ordenar las rutas alfanuméricamente
     rutas_ordenadas = sorted(variable_destino, key=natural_sort_key)
     return rutas_ordenadas
+
 
 def es_numero(cadena):
     try:
