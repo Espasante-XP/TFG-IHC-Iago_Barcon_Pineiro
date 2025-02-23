@@ -7,7 +7,7 @@
 
 import numpy as np
 from cellpose import io
-from utils import obter_lista_ficheiros, obtener_carpetas, es_extension_imagen_string
+from utils import obter_lista_ficheiros, obtener_carpetas, es_extension_imagen_string, es_alfanumerico_o_guion_bajo
 from generate_seg_mask import obtener_izquierda_delimitador
 from cargar_anotaciones import cargar_anotaciones_coco_de_archivo
 import json 
@@ -18,15 +18,6 @@ import re
 ext_anotaciones = '.json'
 ext_imagen_mascara = '.png'
 delim = "."
-
-
-def es_alfanumerico_o_guion_bajo(cadena: str) -> bool:
-    patron = r'^[\w]+$'
-    
-    if re.fullmatch(patron, cadena):
-        return True
-    else:
-        return False
 
 
 archivo_json = '../../config/anotaciones_coco.json'

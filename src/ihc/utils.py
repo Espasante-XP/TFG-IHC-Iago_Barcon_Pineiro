@@ -210,6 +210,7 @@ def natural_sort_key(s):
     """
     return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
 
+
 def obter_lista_ficheiros(ruta_carpeta, extension, suffix_to_filter=None):
     """
     Obtiene una lista de rutas de archivos dentro de una carpeta y sus subcarpetas,
@@ -273,6 +274,7 @@ def es_ruta_valida(cadena: str) -> bool:
     except ValueError:
         return False
 
+
 def es_extension_imagen_string(extension: str) -> bool:
 
     extensiones_imagen = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'tiff', 'webp', 'svg']
@@ -281,12 +283,14 @@ def es_extension_imagen_string(extension: str) -> bool:
     
     return extension in extensiones_imagen
 
+
 # Devuelve todas las carpetas que hay en el directorio terminadas en '/'
 def obtener_carpetas(directorio):
     carpetas = [nombre + '/' for nombre in os.listdir(directorio) if os.path.isdir(os.path.join(directorio, nombre))]
     return carpetas
 
-# Me la ha creado Copilot la lisat de máscaras, no sé si estará bien
+
+# Me la ha creado Copilot la lista de máscaras, no sé si estará bien
 def es_extension_mascara_string(extension: str) -> bool:
 
     extensiones_mascara = ['npy', 'png', 'jpg', 'jpeg', 'tif', 'tiff']
@@ -296,4 +300,15 @@ def es_extension_mascara_string(extension: str) -> bool:
     return extension in extensiones_mascara
 
 
+def es_alfanumerico_o_guion_bajo(cadena: str) -> bool:
+    patron = r'^[\w]+$'
+    
+    if re.fullmatch(patron, cadena):
+        return True
+    else:
+        return False
+    
+# Función auxiliar para obtener el nombre de la carpeta final de un path
+def get_final_folder_name(path):
+    return os.path.basename(os.path.normpath(path))    
 
