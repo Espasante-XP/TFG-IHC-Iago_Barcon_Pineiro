@@ -542,11 +542,18 @@ def train_seg(net, train_data=None, train_labels=None, train_files=None,
             else:
                 filename0 = filename
             train_logger.info(f"saving network parameters to {filename0}")
-            print(f"saving network parameters to {filename0}")
+            print(f"saving network parameters to {filename0} in epoch {iepoch}")
             net.save_model(filename0)
 
-        # Todo nuevo hecho por mi    
-        archivo = 'train_y_test_losses.txt'
+        # Modificaciones del archivo original  
+        output_base_dir = '../../resultados'
+        if not os.path.exists(output_base_dir):
+            os.makedirs(output_base_dir)
+        inner_output_dir = os.path.join(output_base_dir, 'reentrenamiento')
+        if not os.path.exists(inner_output_dir):
+            os.makedirs(inner_output_dir)    
+        
+        archivo = '../../resultados/reentrenamiento/train_y_test_losses.txt'
         formato = 'Variable: {variable}, Valor: {valor}'
         valores_fallos = {}
 
@@ -559,7 +566,7 @@ def train_seg(net, train_data=None, train_labels=None, train_files=None,
 
 
 
-    # Acaba todo lo nuevo
+    # Fin de las modificaciones del archivo original
     
     net.save_model(filename)
 

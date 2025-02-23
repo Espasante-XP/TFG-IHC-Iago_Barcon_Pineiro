@@ -4,7 +4,7 @@
     "path_validacion":"../../Imagenes_validacion_reescalado/",
     "extension_imagen":".jpg",
     "extension_mascara":".npy",
-    "channels":[0, 1],
+    "channels":[0, 0],
     "normalize":"True",
     "weight_decay":"1e-4",
     "learning_rate":"0.01",
