@@ -455,6 +455,20 @@ def train_seg(net, train_data=None, train_labels=None, train_files=None,
 
     train_logger.info(f">>> saving model to {filename}")
 
+    # Modificaciones del archivo original
+    output_base_dir = '../../resultados'
+    if not os.path.exists(output_base_dir):
+        os.makedirs(output_base_dir)
+    inner_output_dir = os.path.join(output_base_dir, 'reentrenamiento')
+    if not os.path.exists(inner_output_dir):
+        os.makedirs(inner_output_dir)    
+        
+    archivo = '../../resultados/reentrenamiento/train_y_test_losses.txt'
+    formato = 'Variable: {variable}, Valor: {valor}'
+    valores_fallos = {}
+
+    # Fin de las modificaciones del archivo original
+
     lavg, nsum = 0, 0
     train_losses, test_losses = np.zeros(n_epochs), np.zeros(n_epochs)
     for iepoch in range(n_epochs):
@@ -546,16 +560,47 @@ def train_seg(net, train_data=None, train_labels=None, train_files=None,
             net.save_model(filename0)
 
         # Modificaciones del archivo original  
-        output_base_dir = '../../resultados'
-        if not os.path.exists(output_base_dir):
-            os.makedirs(output_base_dir)
-        inner_output_dir = os.path.join(output_base_dir, 'reentrenamiento')
-        if not os.path.exists(inner_output_dir):
-            os.makedirs(inner_output_dir)    
-        
-        archivo = '../../resultados/reentrenamiento/train_y_test_losses.txt'
-        formato = 'Variable: {variable}, Valor: {valor}'
-        valores_fallos = {}
+
+        if iepoch >= 30:
+            # Condición 1: train_losses actual menor que hace 20 iteraciones
+            condicion_train = train_losses[iepoch] > train_losses[iepoch - 20]
+
+            # Encontrar la última iteración válida para test_losses (distinta de 0 y no la actual)
+            last_valid_test_loss_iter = None
+            for j in range(iepoch - 1, iepoch - 21, -1):  # Buscar hacia atrás desde iepoch-1
+                if test_losses[j] != 0. and j != iepoch:
+                    last_valid_test_loss_iter = j
+                    break
+
+            # Condición 2: test_losses actual menor que la última iteración válida
+            condicion_test = False
+            if last_valid_test_loss_iter is not None:
+                condicion_test = test_losses[iepoch] > test_losses[last_valid_test_loss_iter]
+
+            # Si alguna de las condiciones se cumple, salir del bucle
+            if condicion_train or condicion_test:
+                mensaje_salida = ""
+                if condicion_train:
+                    mensaje_salida += f"Condición de train_losses cumplida en iteración {iepoch}: " \
+                                    f"train_losses actual: {train_losses[iepoch]} > train_losses (-20 epoch): {train_losses[iepoch - 20]}\n"
+                if condicion_test:
+                    mensaje_salida += f"Condición de test_losses cumplida en iteración {iepoch}: " \
+                                    f"test_losses actual: {test_losses[iepoch]} >  test_losses (-20 epoch): {test_losses[last_valid_test_loss_iter]}\n"
+
+                print(f"Salida anticipada del bucle en iteración {iepoch}:\n{mensaje_salida}")
+
+                # Guardar los valores en el archivo
+                valores_fallos['train_losses'] = train_losses[:iepoch + 1]
+                valores_fallos['test_losses'] = test_losses[:iepoch + 1]
+                with open(archivo, 'w') as f:
+                    for variable, valor in valores_fallos.items():
+                        f.write(formato.format(variable=variable, valor=valor))
+                        f.write('\n')
+
+                # Salir del bucle
+                break
+
+        """ """
 
         valores_fallos['train_losses'] = train_losses
         valores_fallos['test_losses'] = test_losses
@@ -563,7 +608,7 @@ def train_seg(net, train_data=None, train_labels=None, train_files=None,
             for variable, valor in valores_fallos.items():
                 f.write(formato.format(variable=variable, valor=valor))
                 f.write('\n')
-
+        
 
 
     # Fin de las modificaciones del archivo original
