@@ -11,6 +11,8 @@ import numpy as np
 
 model = models.Cellpose(gpu=True, model_type='cyto3')
 
+cargar_datos_internamente = True
+
 archivo_json = '../../config/training.json'
 
 
@@ -85,7 +87,10 @@ if(es_extension_mascara_string(texto_valor_ext_mascara)):
         ext_mascara = '.' + texto_valor_ext_mascara
     if(ext_mascara == ext_imagenes):
         print("Error, el valor introducido para la extensión de las máscaras y las imágenes es el mismo")
-        exit()    
+        exit()
+    if(ext_mascara == '.npy'):
+        print("Warning: Solo se pueden cargar las máscaras internamente si están en un formato de imágenes, se realizará carga local")
+        cargar_datos_internamente = False  
 else:
     print("Error, el valor introducido para la extensión de las máscaras no es válido")
     exit()
@@ -203,7 +208,7 @@ else:
     exit()
 
 
-nombre_modelo = "modelo" + '-' + str(nombre_channels) + '_' + str(channels) + '-' + nombre_normalize + '_' + str(normalize) + '-' + nombre_weight_decay + '_' + str(weight_decay) + '-' + nombre_learning_rate + '_' + str(learning_rate) + '-' + nombre_batch_size + '_' + str(batch_size) + '-' + nombre_epochs + '_' + str(num_epochs) + '-' + nombre_guardar_cada + '_' + str(guardar_cada) + '-' + nombre_min_train_masks + '_' + str(min_train_masks)
+nombre_modelo = "modelo_reentrenado"
 
 train_files = []
 
@@ -234,29 +239,32 @@ except Exception as e:
     print(f"Error: {e}")
     exit()
 
-if(ext_mascara == '.npy'):
-    train_labels = [np.load(fp).astype(np.int32) for fp in train_labels_files] 
-
-    test_labels = [np.load(fp).astype(np.int32) for fp in test_labels_files] 
-else:
-    train_labels = [io.imread(fp) for fp in train_labels_files] # No es correcto cargar las máscaras así porque no son RGB, creo
-
-    test_labels = [io.imread(fp) for fp in test_labels_files] 
-
-train_data = [io.imread(fp) for fp in train_files] 
-
-test_data = [io.imread(fp) for fp in test_files] 
 
 training_losses = [] 
 validation_losses = []
 
-model_path_all, training_losses, test_losses = train.train_seg(model.cp.net, train_data=train_data, train_labels=train_labels, 
+if(cargar_datos_internamente is True):
+    model_path_all, training_losses, test_losses = train.train_seg(model.cp.net, train_files=train_files, train_labels_files=train_labels_files, 
+                                                                channels=channels, normalize=normalize, test_files=test_files, 
+                                                                test_labels_files=test_labels_files, load_files=True, weight_decay=weight_decay, 
+                                                                SGD=True, learning_rate=learning_rate, batch_size=batch_size, n_epochs=num_epochs, 
+                                                                model_name=nombre_modelo, save_path=destino_reentrenamiento, save_every=guardar_cada, 
+                                                                min_train_masks=min_train_masks)
+else:
+    train_labels = [np.load(fp).astype(np.int32) for fp in train_labels_files] 
+
+    test_labels = [np.load(fp).astype(np.int32) for fp in test_labels_files] 
+
+    train_data = [io.imread(fp) for fp in train_files] 
+
+    test_data = [io.imread(fp) for fp in test_files] 
+
+    model_path_all, training_losses, test_losses = train.train_seg(model.cp.net, train_data=train_data, train_labels=train_labels, 
                                                                 channels=channels, normalize=normalize, test_data=test_data, 
                                                                 test_labels=test_labels, load_files=False, weight_decay=weight_decay, 
                                                                 SGD=True, learning_rate=learning_rate, batch_size=batch_size, n_epochs=num_epochs, 
                                                                 model_name=nombre_modelo, save_path=destino_reentrenamiento, save_every=guardar_cada, 
                                                                 min_train_masks=min_train_masks)
-
 
 print("Modelo guardado en:", model_path_all)
 
