@@ -127,19 +127,30 @@ else:
 texto_valor_diameter = valores_parametros_modelo[nombre_diameter]
 
 if(texto_valor_diameter.isdigit()):
-    valor_diameter = int(texto_valor_diameter)
-elif (texto_valor_diameter.isalpha() and texto_valor_diameter == "None"):
+    if(int(texto_valor_diameter) >= 0):
+        valor_diameter = int(texto_valor_diameter)
+    else:
+        print("Error, el valor introducido para la variable diameter no es válido")
+        exit()
+elif ((texto_valor_diameter.isalpha() and texto_valor_diameter == "None") or (texto_valor_diameter == "")):
     valor_diameter = None
+    print("Warning: No se ha especificado un valor para el diámetro, el modelo estimará el valor")
 else:
     print("Error, el valor introducido para la variable diameter no es válido")
     exit()
-
+       
 
 texto_valor_min_size = valores_parametros_modelo[nombre_min_size]
 
 if(texto_valor_min_size.isdigit()):
-    valor_min_size = int(texto_valor_min_size)
-elif (texto_valor_min_size.isalpha() and texto_valor_min_size == "None"):
+    if(int(texto_valor_min_size) >= 0):
+        valor_min_size = int(texto_valor_min_size)
+    else:
+        print("Error, el valor introducido para la variable min_size no es válido")
+        exit()
+    if(((valor_min_size > valor_diameter) and (valor_diameter is not None)) or ((valor_min_size >= 0) and (valor_diameter is None))):
+        print("Warning: el valor de la variable min_size es mayor que el valor de la variable diameter")
+elif ((texto_valor_min_size.isalpha() and texto_valor_min_size == "None") or (texto_valor_min_size == "")):
     valor_min_size = None
 else:
     print("Error, el valor introducido para la variable min_size no es válido")
@@ -247,7 +258,12 @@ indice = 0
 for filename in imagenes:
     imagen_cargada = io.imread(filename)  
 
-    resultado = model.eval(imagen_cargada, diameter=valor_diameter, channels=channels, normalize=valor_normalize,
+    if(valor_min_size is None):
+        resultado = model.eval(imagen_cargada, diameter=valor_diameter, channels=channels, normalize=valor_normalize,
+                flow_threshold=valor_flow_threshold, cellprob_threshold=valor_cellprob_threshold,
+                niter=valor_niter, tile_overlap=valor_tile_overlap, progress=True)
+    else:     
+        resultado = model.eval(imagen_cargada, diameter=valor_diameter, channels=channels, normalize=valor_normalize,
              flow_threshold=valor_flow_threshold, cellprob_threshold=valor_cellprob_threshold,
             min_size=valor_min_size, niter=valor_niter, tile_overlap=valor_tile_overlap, progress=True)
 

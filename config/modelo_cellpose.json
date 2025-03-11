@@ -11,7 +11,7 @@
     "tile_overlap":"0.3",
     "flow_threshold":"0.6",
     "cellprob_threshold":"-0.5",
-    "nombre_sufijo_mascara_pred":"",
+    "nombre_sufijo_mascara_pred":"_predicted_mask",
     "sufijo_mascara_g_truth":"ground_truth"
 
 }
