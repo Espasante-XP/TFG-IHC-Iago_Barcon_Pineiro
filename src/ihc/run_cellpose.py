@@ -243,10 +243,9 @@ except Exception as e:
     print(f"Error: {e}")
     exit()
 
-model = models.CellposeModel(gpu=True, model_type='cyto3')
 
-try:
-    model.net.load_model(model_file_path)
+try: 
+    model = models.CellposeModel(gpu=True, pretrained_model=model_file_path)
 except Exception as e:
     print(f"Error: {e}")
     print("No se ha podido cargar el modelo")
@@ -331,6 +330,7 @@ for index in range(0, len(resultados_jaccard)):
 
 print("\n")
 print("Se realizaron las anotaciones jaccard de las imágenes")
+print("La mediana de las anotaciones es ", np.median(resultados_jaccard))
 print("\n")
 
 del archivo_json, true_list_aux, pred_list_aux, aux
