@@ -28,7 +28,7 @@ def cargar_anotaciones_coco_de_archivo(annFile: os.path):
         annotations = coco.loadAnns(annotation)
         for ann_index, annotation in enumerate(annotations):
             mask = coco.annToMask(annotation)                
-            mascaras_multietiqueta[index][mask>0] = ann_index
+            mascaras_multietiqueta[index][mask>0] = ann_index + 1 # Se añade 1 para que sea distinguible del fondo, el cual es 0
         index = index + 1
 
     nombres_imagenes = [img['file_name'] for img in informacion_imagenes]

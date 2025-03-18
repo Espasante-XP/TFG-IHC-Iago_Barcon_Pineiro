@@ -12,7 +12,6 @@ from generate_seg_mask import obtener_izquierda_delimitador
 from cargar_anotaciones import cargar_anotaciones_coco_de_archivo
 import json 
 from pathlib import Path
-import re
 
 
 ext_anotaciones = '.json'
