@@ -4,6 +4,19 @@ from pycocotools.coco import COCO
 import os
 
 def cargar_anotaciones_coco_de_archivo(annFile: os.path):
+    """
+    Carga anotaciones COCO y genera máscaras multietiqueta para cada imagen.
+
+    Args:
+        annFile (os.path o str): Ruta al archivo JSON de anotaciones COCO.
+
+    Returns:
+        tuple: Contiene:
+            - coco (COCO): Objeto COCO inicializado.
+            - mascaras_multietiqueta (list): Lista de arrays numpy con máscaras etiquetadas.
+            - nombres_imagenes (list): Lista de nombres de archivo de las imágenes.
+    """
+    
     coco=COCO(annFile) 
 
     image_ids = coco.getImgIds()
