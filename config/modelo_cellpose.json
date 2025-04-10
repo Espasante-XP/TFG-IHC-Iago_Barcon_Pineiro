@@ -1,7 +1,7 @@
 {
 
     "path_imagenes":["../../Imagenes_validacion_reescalado2", "../../Imagenes_entrenamiento_reescalado2"],
-    "path_modelo":"../../models/modelo-channels_[0, 1]-normalize_True-weight_decay_0.0001-learning_rate_0.01-batch_size_8-num_epochs_1000-guardar_cada_10-min_train_masks_1",
+    "path_modelo":"../../models/modelo_reentrenado",
     "extension_imagen":".jpg",
     "channels":[0,0],
     "diameter":"50",
