@@ -22,6 +22,10 @@ src/ihc/Anotaciones_coco_enviadas/
 src/ihc/Anotaciones_coco_malas/
 IL6_1_reescalado/
 models/
+valores_comp_conexas/
+valores_clasif_tincion/
+anotaciones_coco_v2/
+resultados_modelo_datos_sin_primer_elem/
 
 src/ihc/reentrenamiento.py
 src/ihc/training_Copilot.py
