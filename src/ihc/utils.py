@@ -203,16 +203,48 @@ def create_ade20k_label_colormap():
         [92, 0, 255],
     ])
 
-# Devuelve el path de todos los elementos que se encuentren dentro de la carpeta y subcarpetas
-# de la ruta que tengan la extensión dada
-def obter_lista_ficheiros(ruta_carpeta, extension):
+
+def natural_sort_key(s):
+    """
+    Función auxiliar para ordenar alfanuméricamente.
+    """
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+
+
+def obter_lista_ficheiros(ruta_carpeta, extension, suffix_to_filter=None):
+    """
+    Obtiene una lista de rutas de archivos dentro de una carpeta y sus subcarpetas,
+    filtrando por extensión y, opcionalmente, por sufijo.
+
+    :param ruta_carpeta: Ruta de la carpeta raíz donde buscar archivos.
+    :param extension: Extensión de los archivos a seleccionar (por ejemplo, '.png').
+    :param suffix_to_filter: Sufijo opcional para filtrar archivos específicos. 
+                             Si es None o una cadena vacía, no se aplica filtro adicional.
+    :return: Lista de rutas de archivos ordenadas alfanuméricamente.
+    """
     variable_destino = []
-    for carpeta_raiz, _, archivos in os.walk(ruta_carpeta):
+
+    # Recorrer la carpeta raíz y sus subcarpetas
+    for carpeta_raiz, _, archivos in os.walk(ruta_carpeta): 
         for nombre_archivo in archivos:
-            if nombre_archivo.endswith(extension):
-                ruta_imagen = os.path.join(carpeta_raiz, nombre_archivo)
-                variable_destino.append(ruta_imagen)
-    return variable_destino  
+            # Separar el nombre del archivo y su extensión
+            nombre_base, ext = os.path.splitext(nombre_archivo)
+            
+            # Verificar si el archivo tiene la extensión deseada
+            if ext.lower() == extension.lower():
+                # Si se proporcionó un sufijo y el nombre base del archivo termina con ese sufijo
+                if suffix_to_filter and nombre_base.endswith(suffix_to_filter):
+                    ruta_imagen = os.path.join(carpeta_raiz, nombre_archivo)
+                    variable_destino.append(ruta_imagen)
+                # Si no se proporcionó sufijo o el sufijo es una cadena vacía, seleccionar todos los archivos con la extensión
+                elif suffix_to_filter is None or suffix_to_filter == "":
+                    ruta_imagen = os.path.join(carpeta_raiz, nombre_archivo)
+                    variable_destino.append(ruta_imagen)
+
+    # Ordenar las rutas alfanuméricamente
+    rutas_ordenadas = sorted(variable_destino, key=natural_sort_key)
+    return rutas_ordenadas
+
 
 def es_numero(cadena):
     try:
@@ -230,7 +262,6 @@ def es_num_positivo_string(cadena: str) -> bool:
         numero = float(cadena)
     return numero > 0
 
-import os
 
 def es_ruta_valida(cadena: str) -> bool:
     try:
@@ -243,6 +274,7 @@ def es_ruta_valida(cadena: str) -> bool:
     except ValueError:
         return False
 
+
 def es_extension_imagen_string(extension: str) -> bool:
 
     extensiones_imagen = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'tiff', 'webp', 'svg']
@@ -251,4 +283,32 @@ def es_extension_imagen_string(extension: str) -> bool:
     
     return extension in extensiones_imagen
 
+
+# Devuelve todas las carpetas que hay en el directorio terminadas en '/'
+def obtener_carpetas(directorio):
+    carpetas = [nombre + '/' for nombre in os.listdir(directorio) if os.path.isdir(os.path.join(directorio, nombre))]
+    return carpetas
+
+
+# Me la ha creado Copilot la lista de máscaras, no sé si estará bien
+def es_extension_mascara_string(extension: str) -> bool:
+
+    extensiones_mascara = ['npy', 'png', 'jpg', 'jpeg', 'tif', 'tiff']
+    
+    extension = extension.lower().lstrip('.')
+    
+    return extension in extensiones_mascara
+
+
+def es_alfanumerico_o_guion_bajo(cadena: str) -> bool:
+    patron = r'^[\w]+$'
+    
+    if re.fullmatch(patron, cadena):
+        return True
+    else:
+        return False
+    
+# Función auxiliar para obtener el nombre de la carpeta final de un path
+def get_final_folder_name(path):
+    return os.path.basename(os.path.normpath(path))    
 

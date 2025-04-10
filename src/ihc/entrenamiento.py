@@ -1,12 +1,20 @@
-from cellpose import models, train
+#!/usr/bin/env python
+# coding: utf-8
+
+
+from cellpose import models, train, io
 import json
-from utils import obter_lista_ficheiros, es_extension_imagen_string, es_ruta_valida, es_num_positivo_string, es_numero
+from utils import obter_lista_ficheiros, es_extension_imagen_string, es_ruta_valida, es_num_positivo_string, es_numero, es_extension_mascara_string
 from pathlib import Path
+import numpy as np
 
 
 model = models.Cellpose(gpu=True, model_type='cyto3')
 
+cargar_datos_internamente = True
+
 archivo_json = '../../config/training.json'
+
 
 archivo_abierto = open(archivo_json)
 
@@ -38,14 +46,12 @@ nombre_min_train_masks = 'min_train_masks'
 
 valores_parametros_modelo = json.load(archivo_abierto)
 
-print("")
-
 
 #Comprobaciones de que los valores cargados son correctos
 texto_valor_dir_entrenamiento = valores_parametros_modelo[nombre_dir_entrenamiento]
 
 if(Path(texto_valor_dir_entrenamiento).exists() and Path(texto_valor_dir_entrenamiento).is_dir()):
-    root_training_directory = Path(texto_valor_dir_entrenamiento)
+    root_training_directory = texto_valor_dir_entrenamiento 
 else:
     print("Error, el valor introducido para el directorio de entrenamiento no es válido")
     exit()
@@ -54,7 +60,7 @@ else:
 texto_valor_dir_validacion = valores_parametros_modelo[nombre_dir_validacion]
 
 if(Path(texto_valor_dir_validacion).exists() and Path(texto_valor_dir_validacion).is_dir()):
-    root_validation_directory = Path(texto_valor_dir_validacion)
+    root_validation_directory = texto_valor_dir_validacion 
 else:
     print("Error, el valor introducido para el directorio de validación no es válido")
     exit()
@@ -74,11 +80,17 @@ else:
 
 texto_valor_ext_mascara = valores_parametros_modelo[nombre_ext_mascara]
 
-if(texto_valor_ext_mascara.lower().lstrip('.') == 'npy'): 
+if(es_extension_mascara_string(texto_valor_ext_mascara)): 
     if(texto_valor_ext_mascara.startswith('.')):
         ext_mascara = texto_valor_ext_mascara
     else:
         ext_mascara = '.' + texto_valor_ext_mascara
+    if(ext_mascara == ext_imagenes):
+        print("Error, el valor introducido para la extensión de las máscaras y las imágenes es el mismo")
+        exit()
+    if(ext_mascara == '.npy'):
+        print("Warning: Solo se pueden cargar las máscaras internamente si están en un formato de imágenes, se realizará carga local")
+        cargar_datos_internamente = False  
 else:
     print("Error, el valor introducido para la extensión de las máscaras no es válido")
     exit()
@@ -86,11 +98,25 @@ else:
 
 valor_channels = valores_parametros_modelo[nombre_channels]
 
-if(isinstance(valor_channels, list)): 
-
+if isinstance(valor_channels, list):
+    # Comprobar si es una lista simple o una lista de listas
+    if all(isinstance(item, list) for item in valor_channels):  # Si es una lista de listas
+        for sublista in valor_channels:
+            if not (isinstance(sublista, list) and len(sublista) == 2 and 
+                    all(isinstance(x, (int, float)) and 0 <= x <= 3 for x in sublista)):
+                print(f"Error, el valor introducido para la variable {nombre_channels} no es válido")
+                exit()
+        es_lista_de_listas = True
+    else:  # Si es una lista simple
+        if not (len(valor_channels) == 2 and 
+                all(isinstance(x, (int, float)) and 0 <= x <= 3 for x in valor_channels)):
+            print(f"Error, el valor introducido para la variable {nombre_channels} no es válido")
+            exit()
+    # Si pasa todas las validaciones, asignar el valor
     channels = valor_channels
+    es_lista_de_listas = False
 else:
-    print(f"Error, el valor introducido para la variable {nombre_channels} no es válido")
+    print(f"Error, el valor introducido para la variable {nombre_channels} no es una lista")
     exit()
 
 
@@ -134,7 +160,7 @@ else:
 texto_valor_batch_size = valores_parametros_modelo[nombre_batch_size]
 
 if(es_num_positivo_string(texto_valor_batch_size)):
-    batch_size = float(texto_valor_batch_size)
+    batch_size = int(texto_valor_batch_size)
 else:
     print(f"Error, el valor introducido para la variable {nombre_batch_size} no es válido")
     exit()
@@ -143,7 +169,7 @@ else:
 texto_valor_num_epochs = valores_parametros_modelo[nombre_epochs]
 
 if(es_num_positivo_string(texto_valor_num_epochs)):
-    num_epochs = float(texto_valor_num_epochs)
+    num_epochs = int(texto_valor_num_epochs)
 else:
     print(f"Error, el valor introducido para la variable {nombre_epochs} no es válido")
     exit()
@@ -161,9 +187,9 @@ else:
 texto_valor_guardar_cada = valores_parametros_modelo[nombre_guardar_cada]
 
 if(es_num_positivo_string(texto_valor_guardar_cada)):
-    if(float(texto_valor_guardar_cada) >= num_epochs):
+    guardar_cada = int(texto_valor_guardar_cada)
+    if(guardar_cada >= num_epochs):
         print(f"Warning: El valor de {nombre_guardar_cada} es igual o superior al de {nombre_epochs}")
-    guardar_cada = float(texto_valor_guardar_cada)
 else:
     print(f"Error, el valor introducido para la variable {nombre_guardar_cada} no es válido")
     exit()
@@ -172,8 +198,8 @@ else:
 texto_valor_min_train_masks = valores_parametros_modelo[nombre_min_train_masks]
 
 if(es_numero(texto_valor_min_train_masks)):
-    if(float(texto_valor_min_train_masks) >= 0):
-        min_train_masks = float(texto_valor_min_train_masks)
+    if(int(texto_valor_min_train_masks) >= 0):
+        min_train_masks = int(texto_valor_min_train_masks)
     else:
         print(f"Error, el valor introducido para la variable {nombre_min_train_masks} no es válido")
         exit()   
@@ -182,7 +208,7 @@ else:
     exit()
 
 
-nombre_modelo = "modelo" + '-' + str(nombre_channels) + '_' + str(channels) + '-' + nombre_normalize + '_' + str(normalize) + '-' + nombre_weight_decay + '_' + str(weight_decay) + '-' + nombre_learning_rate + '_' + str(learning_rate) + '-' + nombre_batch_size + '_' + str(batch_size) + '-' + nombre_epochs + '_' + str(num_epochs) + '-' + nombre_guardar_cada + '_' + str(guardar_cada) + '-' + nombre_min_train_masks + '_' + str(min_train_masks)
+nombre_modelo = "modelo_reentrenado"
 
 train_files = []
 
@@ -200,18 +226,47 @@ test_labels_files = []
 
 test_labels_files = obter_lista_ficheiros(root_validation_directory, ext_mascara)
 
+# Comprobación de que hay el mismo número de imágenes y máscaras tanto en entrenamiento como en validación
+try:
+    assert len(train_files) == len(train_labels_files), "El número de archivos de entrenamiento no coincide con el número de máscaras."
+
+    assert len(test_files) == len(test_labels_files), "El número de archivos de validación no coincide con el número de máscaras."
+
+    if(es_lista_de_listas):
+        assert len(train_files) == len(channels), "El número de canales no coincide con el número de archivos de entrenamiento."
+        assert len(test_files) == len(channels), "El número de canales no coincide con el número de archivos de validación."
+except Exception as e:
+    print(f"Error: {e}")
+    exit()
+
 
 training_losses = [] 
 validation_losses = []
 
-
-model_path_all, training_losses, test_losses = train.train_seg(model.cp.net, train_files=train_files, train_labels_files=train_labels_files, 
+if(cargar_datos_internamente is True):
+    model_path_all, training_losses, test_losses = train.train_seg(model.cp.net, train_files=train_files, train_labels_files=train_labels_files, 
                                                                 channels=channels, normalize=normalize, test_files=test_files, 
                                                                 test_labels_files=test_labels_files, load_files=True, weight_decay=weight_decay, 
                                                                 SGD=True, learning_rate=learning_rate, batch_size=batch_size, n_epochs=num_epochs, 
                                                                 model_name=nombre_modelo, save_path=destino_reentrenamiento, save_every=guardar_cada, 
                                                                 min_train_masks=min_train_masks)
-                                                                
+else:
+    train_labels = [np.load(fp).astype(np.int32) for fp in train_labels_files] 
+
+    test_labels = [np.load(fp).astype(np.int32) for fp in test_labels_files] 
+
+    train_data = [io.imread(fp) for fp in train_files] 
+
+    test_data = [io.imread(fp) for fp in test_files] 
+
+    model_path_all, training_losses, test_losses = train.train_seg(model.cp.net, train_data=train_data, train_labels=train_labels, 
+                                                                channels=channels, normalize=normalize, test_data=test_data, 
+                                                                test_labels=test_labels, load_files=False, weight_decay=weight_decay, 
+                                                                SGD=True, learning_rate=learning_rate, batch_size=batch_size, n_epochs=num_epochs, 
+                                                                model_name=nombre_modelo, save_path=destino_reentrenamiento, save_every=guardar_cada, 
+                                                                min_train_masks=min_train_masks)
+
+print("Modelo guardado en:", model_path_all)
 
 exit()
 

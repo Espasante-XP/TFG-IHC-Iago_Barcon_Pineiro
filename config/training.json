@@ -9,9 +9,9 @@
     "weight_decay":"1e-4",
     "learning_rate":"0.01",
     "batch_size":"8",
-    "num_epochs":"10",
+    "num_epochs":"1000",
     "destino_reentrenamiento":"../../",
-    "guardar_cada":"5",
+    "guardar_cada":"10",
     "min_train_masks":"1"
 
 }

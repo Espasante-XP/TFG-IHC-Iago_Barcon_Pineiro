@@ -1,7 +1,7 @@
 {
 
     "escala":"0.25",
-    "path_imagenes":"../../Imagenes_entrenamiento/",
+    "path_imagenes":["../../Imagenes_validacion/", "../../Imagenes_entrenamiento/"],
     "path_salida":"../../reescalado/",
     "extension_imagen":".jpg",
     "extension_mascara":"npy"

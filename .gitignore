@@ -3,6 +3,7 @@
 **/*.png
 **/*.jpg
 **/*.txt
+**/*.zip
 src/ihc/*.json
 
 __pycache__/
@@ -17,6 +18,7 @@ Imagenes_entrenamiento/
 Imagenes_entrenamiento_reescalado/
 reescalado/
 src/ihc/Anotaciones_coco/
+src/ihc/Anotaciones_coco_enviadas/
 src/ihc/Anotaciones_coco_malas/
 IL6_1_reescalado/
 models/
@@ -26,3 +28,4 @@ src/ihc/training_Copilot.py
 src/ihc/guardar_mascara_ground_truth.py
 Imagenes para entrenamiento.zip
 Trabajo TFG.zip
+src/ihc/Anotaciones_coco_enviadas.zip

@@ -1,0 +1,8 @@
+{
+
+    "path_imagenes":"../../Imagenes_entrenamiento/",
+    "path_anotaciones":"anotaciones_coco_v2/",
+    "extension_imagen":".jpg",
+    "sufijo_mascara":"ground_truth"
+
+}
