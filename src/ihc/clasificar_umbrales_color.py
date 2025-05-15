@@ -3,6 +3,7 @@ from pycocotools.coco import COCO
 from collections import defaultdict
 from utils import obter_lista_ficheiros
 import os, shutil, gc
+import json
 
 
 # para clasificar las células de CLAHE y HSV_normalizado hay que modificar los valores de la lista 
@@ -14,10 +15,13 @@ carpetas_clasificacion = ["sin tincion", "minima", "media", "maxima"]
 carpetas_datos = ["HSV", "RGB", "LAB"]
 
 dir_general = "../../valores_comp_conexas/"
+#dir_general = "../../parametros_HSV_RGB_LAB/" # parametros_HSV_RGB_LAB
 
 dir_nuevo_general = "../../valores_clasif_tincion"
 
 dir_anotaciones_coco_general = "./anotaciones_coco_v2"
+
+umbral_porcentaje_tincion = 0.7 # Umbral de tinción para clasificar como "máxima"
 
 
 def obtener_indices_por_categoria(fuentes):
@@ -137,7 +141,9 @@ for anotaciones_coco in lista_anotaciones_coco:
                     archivos_validos.append(archivos_json[idx]) 
                 else: # Por algún motivo en Control_negativo_3 sale un index out of range 2 veces cuando no debería
                     print("len(archivos_json): ", len(archivos_json))
-                    print(f"Índice {idx} fuera de rango en {os.path.dirname(archivos_json[idx-2])}") 
+                    print("idx: ", idx)
+                    print("directorio_datos: ", directorio_datos)
+                    print(f"Índice {idx} fuera de rango en {os.path.dirname(archivos_json[idx-2])}") # tengo el -2 puesto porque con 0 y -1 da error, pero no debería
             archivos_por_tipo.append(archivos_validos)
         
         # Agregar a la categoría actual
@@ -151,17 +157,64 @@ for anotaciones_coco in lista_anotaciones_coco:
             for archivo in archivos:
                 # Obtener rutas de carpetas originales
                 ruta_completa = os.path.dirname(archivo)
-                carpeta_imagen = os.path.basename(ruta_completa)  # Ej: 'Imagen_11'
-                carpeta_grupo = os.path.basename(os.path.dirname(ruta_completa))  # Ej: 'carpeta_grupo_imagenes7'
+                carpeta_imagen = os.path.basename(ruta_completa)  # Ej: 'Image_994'
+                carpeta_grupo = os.path.basename(os.path.dirname(ruta_completa))  # Ej: 'FNB 4_3'
                 
+
+                with open(archivo, 'r') as file:
+                    data = json.load(file)
+
+                clave = "nivel_tincion"
+                data[clave] = carpetas_clasificacion[categoria_idx] # Cambio el valor de la clave "nivel_tincion" por el nombre de la carpeta de tinción
+
+                with open(archivo, 'w') as file:
+                    json.dump(data, file, indent=2)
+
+
                 # Construir ruta destino
+                """
+                if carpetas_clasificacion[categoria_idx] == "maxima" and tipo_dato == "HSV": 
+                    # El filtrado está bien, pero para los valores de ground truth no tiene sentido hacerlo porque son los valores reales
+
+                    with open(archivo, 'r') as file:
+                        data = json.load(file)
+                    print("Archivo: ", archivo)
+                    if data["area_tincion"] < umbral_porcentaje_tincion:
+                        dir_tincion = "media"
+                        print("area_tincion: ", data["area_tincion"])
+                        print("Archivo: ", archivo)
+                        print("Pasa a ser tinción media")
+                        #exit()
+                    else:
+                        dir_tincion = "maxima"
+                    #dir_tincion = "media"
+
+                    dir_destino = os.path.join(
+                        dir_nuevo_general,
+                        tipo_dato,
+                        dir_tincion, # Tipo de tinción (ej: "media" o "maxima")
+                        carpeta_grupo,    # ← Carpeta del grupo (ej: carpeta_grupo_imagenes7)
+                        carpeta_imagen    # ← Carpeta de la imagen (ej: Imagen_11)
+                    )
+                else:
+                    dir_destino = os.path.join(
+                        dir_nuevo_general,
+                        tipo_dato,
+                        carpetas_clasificacion[categoria_idx], # ← Carpeta de la tinción (ej: "maxima")
+                        carpeta_grupo,    # ← Carpeta del grupo (ej: carpeta_grupo_imagenes7)
+                        carpeta_imagen    # ← Carpeta de la imagen (ej: Imagen_11)
+                    )
+                """
+
+
                 dir_destino = os.path.join(
-                    dir_nuevo_general,
-                    tipo_dato,
-                    carpetas_clasificacion[categoria_idx],
-                    carpeta_grupo,    # ← Carpeta del grupo (ej: carpeta_grupo_imagenes7)
-                    carpeta_imagen    # ← Carpeta de la imagen (ej: Imagen_11)
-                )
+                        dir_nuevo_general,
+                        tipo_dato,
+                        carpetas_clasificacion[categoria_idx], # ← Carpeta de la tinción (ej: "maxima")
+                        carpeta_grupo,    # ← Carpeta del grupo (ej: carpeta_grupo_imagenes7)
+                        carpeta_imagen    # ← Carpeta de la imagen (ej: Imagen_11)
+                    )
+                
                 
                 # Crear estructura y copiar
                 os.makedirs(dir_destino, exist_ok=True)

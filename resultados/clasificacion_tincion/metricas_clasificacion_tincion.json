@@ -1,0 +1,21 @@
+{
+    "aciertos": 3754,
+    "fallos": 5034,
+    "sin tincion": {
+        "ground_truth": 891,
+        "comparar": 1249
+    },
+    "minima": {
+        "ground_truth": 2430,
+        "comparar": 0
+    },
+    "media": {
+        "ground_truth": 3344,
+        "comparar": 7491
+    },
+    "maxima": {
+        "ground_truth": 826,
+        "comparar": 48
+    },
+    "porcentaje aciertos": 42.702764190649525
+}
