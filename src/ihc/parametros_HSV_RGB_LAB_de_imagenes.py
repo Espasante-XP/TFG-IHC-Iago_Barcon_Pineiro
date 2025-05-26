@@ -101,40 +101,27 @@ def crear_dir_y_subdir_resultados(image_path, carpeta_guardar_resultados):
 
     return base_name, path_valores
 
-
+# Devuelve las áreas con algo de tinción para calcular el área de tinción
 def filtrado_zscore(zscore, threshold_zscore):
-    thresholded_pixels = zscore > threshold_zscore # esto ya es parte de la clasificación de la tinción, por tanto, no se tiene que hacer
+    thresholded_pixels = zscore > threshold_zscore 
     filtered_zscore = zscore[thresholded_pixels]
     return filtered_zscore
 
 
 def clasificar_tincion(zscore, area_tincion, threshold_no_tincion, threshold_min, threshold_max, threshold_max_area):
-    # tengo que meter aquí el filtrado ese que hago arriba que no es necesario y se tiene que implementar aquí
-    """
-    if ((len(zscore) == 0) or max(zscore) == 0.0):
-        nivel_tincion = "sin tincion" 
-    elif np.median(zscore) < np.percentile(zscore, threshold_min):
-        nivel_tincion = "minima"
-    elif np.median(zscore) < np.percentile(zscore, threshold_max):
-        nivel_tincion = "media"
-    elif np.median(zscore) >= np.percentile(zscore, threshold_max):
-        if area_tincion > threshold_max_area:
-            nivel_tincion = "maxima"
-        else:
-            nivel_tincion = "media"
-    """
-
+ 
     if (max(zscore) < threshold_no_tincion):
-        nivel_tincion = "sin tincion"
+        nivel_tincion = 1 
     elif max(zscore) >= threshold_no_tincion and max(zscore) < threshold_min:
-        nivel_tincion = "minima"
+        nivel_tincion = 2
     elif max(zscore) >= threshold_min and max(zscore) < threshold_max  :
-        nivel_tincion = "media"
+        nivel_tincion = 3
     elif max(zscore) >= threshold_max:
         if area_tincion > threshold_max_area:
-            nivel_tincion = "maxima"
+            nivel_tincion = 4
         else:
-            nivel_tincion = "media"
+            nivel_tincion = 3
+
     return nivel_tincion
 
 
@@ -586,22 +573,17 @@ def obtener_datos_HSV_normalizados_de_imagenes_distancias(image_paths, mask_path
                 continue
             
             # Conversión a RGB (OpenCV lee como BGR)
-            rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
             
-            distances, error = calcular_distancia_mahalanobis(rgb_image, image, mask)
+            distances, error = calcular_distancia_mahalanobis(hsv_image, image, mask)
             if error:
                 print(f"Advertencia: No hay píxeles de fondo en {image_path}")
                 continue
-
             
             # Normalización z-score global (usada para filtrado)
             mean_dist_global = np.mean(distances)
             std_dist_global = np.std(distances)
             zscore_global = (distances - mean_dist_global) / std_dist_global
-            
-            #print(f"Distancia de Mahalanobis calculada para {image_path}")
-            #print(f"Media global de la distancia: {mean_dist_global}")
-            #print(f"Desviación estándar global: {std_dist_global}")
 
             # Procesamiento de células
             labels_unicas = np.unique(mask)
@@ -627,14 +609,9 @@ def obtener_datos_HSV_normalizados_de_imagenes_distancias(image_paths, mask_path
                 component_mask = (mask == label).astype(np.uint8)
                 
                 # Extraer distancias y z-score global para los píxeles de la célula actual
-                cell_distances = distances[component_mask != 0] # ya no lo uso
                 cell_zscore = zscore_global[component_mask != 0]
                 
                 # Filtrar píxeles con z-score > threshold_zscore
-                #thresholded_pixels = cell_zscore > threshold_zscore
-
-                #thresholded_pixels = cell_distances > threshold_zscore
-
                 thresholded_pixels = cell_zscore > threshold_zscore
                 filtered_zscore = cell_zscore[thresholded_pixels]
                 
@@ -644,23 +621,19 @@ def obtener_datos_HSV_normalizados_de_imagenes_distancias(image_paths, mask_path
                 # Calcular área de tinción (porcentaje de píxeles filtrados)
                 area_tincion = float(filtered_zscore.size) / float(cell_zscore.size) if cell_zscore.size > 0 else 0.0
                 
-                
-                nivel_tincion  = "" # Provisional
+                nivel_tincion  = ""
 
-                if ((len(filtered_zscore) == 0) or max(filtered_zscore) == 0.0): # Al poner lo del len al principio, me evito el 
-                                                                                    # error de no porder hacer max de un array vacío
-                    nivel_tincion = "sin tincion" 
+                if ((len(filtered_zscore) == 0) or max(filtered_zscore) == 0.0): 
+                    nivel_tincion = 1
                 elif np.median(filtered_zscore) < np.percentile(zscore_global, threshold_min):
-                    nivel_tincion = "minima"
+                    nivel_tincion = 2
                 elif np.median(filtered_zscore) < np.percentile(zscore_global, threshold_max):
-                    nivel_tincion = "media"
+                    nivel_tincion = 3
                 elif np.median(filtered_zscore) >= np.percentile(zscore_global, threshold_max):
                     if area_tincion > threshold_max_area:
-                        nivel_tincion = "maxima"
+                        nivel_tincion = 4
                     else:
-                        nivel_tincion = "media"
-                
-
+                        nivel_tincion = 3
             
                 # Guardar datos en JSON
                 filename = f"{base_name}_cell_{label}"
@@ -733,10 +706,9 @@ def obtener_datos_RGB_normalizados_de_imagenes_distancias(image_paths, mask_path
 
                 cell_zscore = (cell_distances - media) / desv_estandar
 
-                filtered_zscore = filtrado_zscore(cell_zscore, threshold_no_tincion) # Según me pone Raquel en GitHub no tengo que hacerlo
+                filtered_zscore = filtrado_zscore(cell_zscore, threshold_no_tincion)
                 
                 # Calcular estadísticas del z-score filtrado
-                #mean_zscore = float(np.mean(filtered_zscore)) if filtered_zscore.size > 0 else 0.0
                 mean_zscore = float(np.mean(cell_zscore)) if cell_zscore.size > 0 else 0.0
                 
                 # Calcular área de tinción (porcentaje de píxeles filtrados)
@@ -750,7 +722,7 @@ def obtener_datos_RGB_normalizados_de_imagenes_distancias(image_paths, mask_path
                 # Guardar datos en JSON
                 filename = f"{base_name}_cell_{label}"
                 data = {
-                    "zscore_all": cell_zscore.tolist(),          #filtered_zscore.tolist(),
+                    "zscore_all": cell_zscore.tolist(),          
                     "mean_zscore": mean_zscore,
                     "max_zscore": max(cell_zscore),                     
                     "area_tincion": area_tincion,                    
@@ -768,25 +740,3 @@ def obtener_datos_RGB_normalizados_de_imagenes_distancias(image_paths, mask_path
         print(f" Error en obtener_datos_RGB: {e}")
         return ""
 
-
-""" 
-dir_imagenes_y_mascaras_hsv =  ["../../Imagenes_entrenamiento_reescalado", "../../Imagenes_validacion_reescalado/"]
-
-imagenes_hsv = []
-mascaras_hsv = []
-
-for directorio in dir_imagenes_y_mascaras_hsv:
-    imagenes_hsv.extend(obter_lista_ficheiros(directorio, ".jpg"))
-    mascaras_hsv.extend(obter_lista_ficheiros(directorio, ".npy"))
-"""
-
-#obtener_datos_LAB_de_imagenes(imagenes_hsv, mascaras_hsv)
-
-#obtener_datos_HSV_de_imagenes_normalizacion_nueva(imagenes_hsv, mascaras_hsv, threshold_zscore=3)
-
-#dir = obtener_datos_HSV_normalizados_de_imagenes_distancias(imagenes_hsv, mascaras_hsv, threshold_zscore=3)
-
-#obtener_datos_RGB_normalizados_de_imagenes(imagenes_hsv, mascaras_hsv, threshold_zscore=3)
-
-#obtener_datos_RGB_normalizados_de_imagenes_distancias(imagenes_hsv, mascaras_hsv, threshold_no_tincion=3, 
-#                                                      threshold_min=10, threshold_max=20, threshold_max_area=0.7) 
