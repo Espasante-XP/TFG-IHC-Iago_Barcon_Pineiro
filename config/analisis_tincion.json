@@ -2,7 +2,7 @@
 
     "dir_imagenes_y_mascaras": ["../../Imagenes_entrenamiento_reescalado", "../../Imagenes_validacion_reescalado/"],
     "dir_ground_truth": ["../../valores_clasif_tincion/RGB/"],
-    "threshold_no_tincion": 3.0,
+    "threshold_no_tincion": 2.0,
     "threshold_min": 6.0,
     "threshold_max": 15.0,
     "threshold_max_area": 0.7,
