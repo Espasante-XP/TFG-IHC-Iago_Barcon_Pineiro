@@ -2,16 +2,13 @@
 import os, gc
 import json
 from pycocotools.coco import COCO
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from utils import obter_lista_ficheiros, es_numero, es_alfanumerico_o_guion_bajo, natural_sort_key
 from parametros_HSV_RGB_LAB_de_imagenes import obtener_datos_RGB_normalizados_de_imagenes_distancias
-from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, confusion_matrix
 
 # Directorios
 path_folder_metrics = '../../resultados/clasificacion_tincion/'
-
-root_path_anotaciones = "./anotaciones_coco_v2/" # Tengo que meterlo en el archivo de configuración
 
 
 # Función para procesar archivos
@@ -45,7 +42,7 @@ archivo_abierto = open(archivo_json)
 
 nombre_dir_imagenes_y_mascaras = "dir_imagenes_y_mascaras"
 
-nombre_dir_ground_truth = "dir_ground_truth"
+nombre_dir_ground_truth_general = "dir_ground_truth_general"
 
 nombre_threshold_zscore = "threshold_no_tincion"
 
@@ -77,21 +74,14 @@ else:
         exit()
 
 
-# Está soportado que se pase una lista de directorios pero lo ideal sería que todos los archivos estuvieran en el mismo directorio
-texto_valor_dir_ground_truth = valores_parametros_modelo[nombre_dir_ground_truth]
+# Se debe pasar un directorio general de ground truth, que contenga subdirectorios con las anotaciones COCO cuyos nombres coincidan con los de las carpetas de imágenes
+texto_valor_dir_ground_truth_general = valores_parametros_modelo[nombre_dir_ground_truth_general]
 
-if(isinstance(texto_valor_dir_ground_truth, list)): # Si es una lista de directorios, se comprueba que todos los directorios valgan
-    for directorio in texto_valor_dir_ground_truth:
-        if(not Path(directorio).exists() or not Path(directorio).is_dir()):
-            print("Error, el valor introducido para el directorio de archivos ground_truth no es válido")
-            exit()
-    dir_ground_truth = texto_valor_dir_ground_truth
+if(Path(texto_valor_dir_ground_truth_general).exists() and Path(texto_valor_dir_ground_truth_general).is_dir()):
+    dir_ground_truth_general = texto_valor_dir_ground_truth_general 
 else:
-    if(Path(texto_valor_dir_ground_truth).exists() and Path(texto_valor_dir_ground_truth).is_dir()):
-        dir_ground_truth = texto_valor_dir_ground_truth 
-    else:
-        print("Error, el valor introducido para el directorio de archivos ground_truth no es válido")
-        exit()
+    print("Error, el valor introducido para el directorio de archivos ground_truth no es válido")
+    exit()
 
 
 texto_valor_threshold_zscore = valores_parametros_modelo[nombre_threshold_zscore]
@@ -182,7 +172,7 @@ valores_tincion_ground_truth = []
 
 for directorio in lista_directorios:
     # Directorio de anotaciones COCO correspondiente
-    dir_anotaciones = os.path.join(root_path_anotaciones, directorio)
+    dir_anotaciones = os.path.join(dir_ground_truth_general, directorio)
     archivos_anotaciones = obter_lista_ficheiros(dir_anotaciones, ".json")
     
     if not archivos_anotaciones:
@@ -243,6 +233,8 @@ for directorio in lista_directorios:
             elif len(valores_predichos) > len(valores_ground_truth):
                 print(f"La longitud de valores predichos es mayor que la de ground truth para la imagen '{image_name_base}' en el directorio '{directorio}'")
             print(f"Advertencia: Longitudes no coinciden para la imagen '{image_name_base}' en el directorio '{directorio}'")
+            print("Longitud de valores predichos:", len(valores_predichos))
+            print("Longitud de valores ground truth:", len(valores_ground_truth))
             
             # Rellenar con -1 en la lista más corta
             max_len = max(len(valores_predichos), len(valores_ground_truth))
@@ -270,6 +262,7 @@ precision = precision_score(y_true_filtrado, y_pred_filtrado, average='weighted'
 recall = recall_score(y_true_filtrado, y_pred_filtrado, average='weighted')
 f1 = f1_score(y_true_filtrado, y_pred_filtrado, average='weighted')
 accuracy = accuracy_score(y_true_filtrado, y_pred_filtrado)
+matriz_confusion = confusion_matrix(y_true_filtrado, y_pred_filtrado, labels=[1, 2, 3, 4])
 
 
 # Si acaso mirar de añadir otra línea con los valores de la media usando micro
@@ -277,7 +270,8 @@ diccionario_tincion = {
     "precision": precision,
     "recall": recall,
     "f1_score": f1,
-    "accuracy": accuracy
+    "accuracy": accuracy,
+    "confusion_matrix": matriz_confusion.tolist()  # Convertir a lista para serializar en JSON
 }
 
 # Crea el directorio y subdirectorios si no existen
