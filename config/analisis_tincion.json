@@ -2,7 +2,7 @@
 
     "dir_imagenes_y_mascaras": ["../../Imagenes_entrenamiento_reescalado"],
     "dir_ground_truth_general": "./anotaciones_coco_v2/",
-    "threshold_no_tincion": 2.0,
+    "threshold_no_tincion": 1.0,
     "threshold_min": 4.0,
     "threshold_max": 15.0,
     "threshold_max_area": 0.7,
