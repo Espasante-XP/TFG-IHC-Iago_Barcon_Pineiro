@@ -5,7 +5,7 @@
     "threshold_no_tincion": 1.0,
     "threshold_min": 4.0,
     "threshold_max": 6.0,
-    "threshold_max_area": 0.5,
+    "threshold_max_area": 0.7,
     "archivo_resultante": "metricas_clasificacion_tincion"
 
 }
