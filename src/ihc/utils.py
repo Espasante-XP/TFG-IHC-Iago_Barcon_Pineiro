@@ -247,6 +247,11 @@ def obter_lista_ficheiros(ruta_carpeta, extension, suffix_to_filter=None):
 
 
 def es_numero(cadena):
+    """
+    Comprueba si la cadena es un número (entero o decimal).
+    :param cadena: Cadena a comprobar.
+    :return: True si la cadena es un número, False en caso contrario.
+    """
     try:
         float(cadena)
         return True
@@ -255,6 +260,11 @@ def es_numero(cadena):
 
 
 def es_num_positivo_string(cadena: str) -> bool:
+    """
+    Comprueba si la cadena es un número positivo.
+    :param cadena: Cadena a comprobar.
+    :return: True si la cadena es un número positivo, False en caso contrario.
+    """
 
     if not es_numero(cadena):
         return False
@@ -263,19 +273,36 @@ def es_num_positivo_string(cadena: str) -> bool:
     return numero > 0
 
 
+def contiene_caracteres(texto, caracteres): 
+    """
+    Devuelve True si el texto contiene al menos uno de los caracteres especificados.
+    """
+    return any(caracter in texto for caracter in caracteres)
+
+
 def es_ruta_valida(cadena: str) -> bool:
+    """
+    Comprueba si la cadena es una ruta válida.
+    :param cadena: Cadena a comprobar.
+    :return: True si la cadena es una ruta válida, False en caso contrario.
+    """
     try:
         if os.path.isabs(cadena) or os.path.relpath(cadena):
             caracteres_invalidos = '<>:"|?*'
-            for caracter in caracteres_invalidos:
-                if caracter in cadena:
-                    return False
+            if contiene_caracteres(cadena, caracteres_invalidos):
+                return False
             return True
     except ValueError:
         return False
 
 
 def es_extension_imagen_string(extension: str) -> bool:
+    """
+    Comprueba si la extensión proporcionada corresponde a un tipo de imagen válido:
+    'jpg', 'jpeg', 'png', 'bmp', 'gif', 'tiff', 'webp', 'svg'.
+    :param extension: Extensión de archivo (con o sin punto).
+    :return: True si la extensión es válida, False en caso contrario.
+    """
 
     extensiones_imagen = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'tiff', 'webp', 'svg']
     
@@ -284,14 +311,23 @@ def es_extension_imagen_string(extension: str) -> bool:
     return extension in extensiones_imagen
 
 
-# Devuelve todas las carpetas que hay en el directorio terminadas en '/'
 def obtener_carpetas(directorio):
+    """
+    Obtiene una lista de carpetas en un directorio dado.
+    :param directorio: Ruta del directorio.
+    :return: Lista de nombres de carpetas con '/' al final.
+    """
     carpetas = [nombre + '/' for nombre in os.listdir(directorio) if os.path.isdir(os.path.join(directorio, nombre))]
     return carpetas
 
 
-# Me la ha creado Copilot la lista de máscaras, no sé si estará bien
 def es_extension_mascara_string(extension: str) -> bool:
+    """
+    Comprueba si la extensión proporcionada corresponde a un tipo de máscara válido:
+    'npy', 'png', 'jpg', 'jpeg', 'tif', 'tiff'.
+    :param extension: Extensión de archivo (con o sin punto).
+    :return: True si la extensión es válida, False en caso contrario.
+    """
 
     extensiones_mascara = ['npy', 'png', 'jpg', 'jpeg', 'tif', 'tiff']
     
@@ -301,14 +337,24 @@ def es_extension_mascara_string(extension: str) -> bool:
 
 
 def es_alfanumerico_o_guion_bajo(cadena: str) -> bool:
+    """
+    Comprueba si la cadena es alfanumérica o contiene guiones bajos.
+    :param cadena: Cadena a comprobar.
+    :return: True si la cadena es alfanumérica o contiene guiones bajos, False en caso contrario.
+    """
     patron = r'^[\w]+$'
     
     if re.fullmatch(patron, cadena):
         return True
     else:
         return False
-    
-# Función auxiliar para obtener el nombre de la carpeta final de un path
+
+
 def get_final_folder_name(path):
+    """
+    Función auxiliar que obtiene el nombre de la carpeta final de un path dado.
+    :param path: Ruta del directorio.
+    :return: Nombre de la carpeta final.
+    """
     return os.path.basename(os.path.normpath(path))    
 
