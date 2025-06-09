@@ -8,22 +8,16 @@ from torch.utils.data import Dataset, DataLoader
 import cv2
 from torchvision import transforms
 from pycocotools.coco import COCO
-from utils import obter_lista_ficheiros, natural_sort_key, get_final_folder_name
+from utils import obter_lista_ficheiros, natural_sort_key, get_final_folder_name, es_num_positivo_string, es_ruta_valida
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, confusion_matrix
 import torchvision.models as models
 from torch.optim import lr_scheduler
+import json
+from pathlib import Path
 
 
+path_folder_metrics = '../../resultados/clasificacion_tincion/'
 
-"""
-    transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),  # Recorte aleatorio y redimensionado
-    transforms.RandomApply([transforms.ColorJitter(brightness=0.2, contrast=0.2)], p=0.5),  # Aumento de brillo y contraste
-    transforms.RandomApply([transforms.RandomAffine(degrees=15, translate=(0.1, 0.1), scale=(0.9, 1.1))], p=0.5),  # Aumento de rotación y traslación
-    transforms.RandomApply([transforms.GaussianBlur(kernel_size=3)], p=0.5),  # Aumento de desenfoque gaussiano
-    transforms.RandomApply([transforms.RandomGrayscale(p=0.1)], p=0.5),  # Aumento de escala de grises
-    transforms.RandomApply([transforms.RandomErasing(p=0.5)], p=0.5),  # Aumento de borrado aleatorio
-    transforms.RandomApply([transforms.RandomPerspective(distortion_scale=0.5, p=0.5)], p=0.5),  # Aumento de perspectiva
-"""
 
 # Función para extraer regiones de células
 def extract_cell_regions(image: np.ndarray, mask: np.ndarray):
@@ -45,8 +39,15 @@ def extract_cell_regions(image: np.ndarray, mask: np.ndarray):
         cell_regions.append(cell_region)
     return np.array(cell_regions)
 
-
+ 
 def obtener_regiones_y_etiquetas(directorio_general, dir_general_anotaciones):
+    """
+    Obtiene las regiones de células y sus etiquetas de tinción a partir de un directorio general que contiene subdirectorios con imágenes y máscaras.
+        :param directorio_general (str): Ruta al directorio general que contiene subdirectorios con imágenes y máscaras.
+        :param dir_general_anotaciones (str): Ruta al directorio general que contiene las anotaciones COCO.
+        :return: lista_total_cell_regions (list): Lista de regiones de células extraídas.
+        :return: lista_total_labels (list): Lista de etiquetas de tinción correspondientes a las regiones de células.
+    """
 
     dir_imagenes = [name for name in os.listdir(directorio_general) if os.path.isdir(os.path.join(directorio_general, name))]
 
@@ -68,7 +69,7 @@ def obtener_regiones_y_etiquetas(directorio_general, dir_general_anotaciones):
             mask = np.load(mascara)
             cell_regions = extract_cell_regions(image, mask)
             lista_aux_regiones.extend(cell_regions)  # Añadir las regiones de células a la lista auxiliar
-        
+            gc.collect()  
 
         nombre_dir = get_final_folder_name(directorio)
         dir_anotaciones = os.path.join(dir_general_anotaciones, nombre_dir)
@@ -89,6 +90,7 @@ def obtener_regiones_y_etiquetas(directorio_general, dir_general_anotaciones):
                 valores_tincion = [v - 1 for v in valores_tincion]
 
             lista_aux_labels.extend(valores_tincion)  # Añadir las etiquetas a la lista auxiliar
+            gc.collect()  
 
         if(len(lista_aux_regiones) == 0 or len(lista_aux_labels) == 0):
             print(f"Advertencia: No se encontraron regiones de células o etiquetas en el directorio {directorio}.")
@@ -103,6 +105,78 @@ def obtener_regiones_y_etiquetas(directorio_general, dir_general_anotaciones):
         lista_total_cell_regions.extend(lista_aux_regiones) # Añadir las regiones de células a la lista total
         lista_total_labels.extend(lista_aux_labels)
         gc.collect() 
+    gc.collect()  
+    return lista_total_cell_regions, lista_total_labels
+
+
+def obtener_regiones_y_etiquetas_y_guardar_imagenes_celulas(directorio_general, dir_general_anotaciones):
+    # Crear las 4 carpetas en el directorio general
+    carpeta_guardado = "../../secciones_celulas/"
+    base_save_dir = os.path.join(carpeta_guardado, "tincion_grupos")
+    for label in range(4):  # Asumimos que las tinciones son 0, 1, 2, 3
+        os.makedirs(os.path.join(base_save_dir, f"tincion_{label}"), exist_ok=True)
+
+    dir_imagenes = [name for name in os.listdir(directorio_general) if os.path.isdir(os.path.join(directorio_general, name))]
+    dir_imagenes = [os.path.join(directorio_general, name) for name in dir_imagenes if os.path.isdir(os.path.join(directorio_general, name))]
+
+    lista_total_cell_regions = []
+    lista_total_labels = []
+
+    for directorio in dir_imagenes:
+        lista_aux_regiones = []
+        lista_aux_labels = []
+
+        lista_imagenes = obter_lista_ficheiros(directorio, ".jpg")
+        lista_mascaras = obter_lista_ficheiros(directorio, ".npy")
+        lista_imagenes_ordenada = sorted(lista_imagenes, key=natural_sort_key)
+        lista_mascaras_ordenada = sorted(lista_mascaras, key=natural_sort_key)
+
+        for imagen, mascara in zip(lista_imagenes_ordenada, lista_mascaras_ordenada):
+            image = cv2.imread(imagen, cv2.COLOR_BGR2RGB)
+            mask = np.load(mascara)
+            cell_regions = extract_cell_regions(image, mask)
+            lista_aux_regiones.extend(cell_regions)
+
+        nombre_dir = get_final_folder_name(directorio)
+        dir_anotaciones = os.path.join(dir_general_anotaciones, nombre_dir)
+        fichero_anotaciones = obter_lista_ficheiros(dir_anotaciones, ".json")
+
+        coco = COCO(fichero_anotaciones[0])
+        image_ids = coco.getImgIds()
+        for image_id in image_ids:
+            ann_ids = coco.getAnnIds(imgIds=image_id)
+            annotations = coco.loadAnns(ann_ids)
+            valores_tincion = [ann['category_id'] for ann in annotations if 'category_id' in ann]
+
+            if np.max(valores_tincion) == 4 and np.min(valores_tincion) > 0:
+                valores_tincion = [v - 1 for v in valores_tincion]
+
+            lista_aux_labels.extend(valores_tincion)
+
+        if len(lista_aux_regiones) == 0 or len(lista_aux_labels) == 0:
+            print(f"Advertencia: No se encontraron regiones de células o etiquetas en el directorio {directorio}.")
+            print("Se omite este directorio.")
+            continue
+
+        if len(lista_aux_regiones) != len(lista_aux_labels):
+            print(f"Advertencia: El número de regiones de células ({len(lista_aux_regiones)}) no coincide con el número de etiquetas ({len(lista_aux_labels)}) en el directorio {directorio}.")
+            print("Se omite este directorio.")
+            continue
+
+        # Guardar las regiones de células en las carpetas correspondientes
+        for idx, (region, label) in enumerate(zip(lista_aux_regiones, lista_aux_labels)):
+            # Convertir la región a formato adecuado para guardar
+            region_uint8 = (region * 255).astype(np.uint8) if region.max() <= 1.0 else region.astype(np.uint8)
+            # Convertir de RGB a BGR para guardar correctamente con cv2.imwrite
+            region_bgr = cv2.cvtColor(region_uint8, cv2.COLOR_RGB2BGR)
+            filename = f"{nombre_dir}_cell_{idx}.png"
+            save_path = os.path.join(base_save_dir, f"tincion_{label}", filename)
+            cv2.imwrite(save_path, region_bgr)
+
+        lista_total_cell_regions.extend(lista_aux_regiones)
+        lista_total_labels.extend(lista_aux_labels)
+        gc.collect()
+
     return lista_total_cell_regions, lista_total_labels
 
 
@@ -150,9 +224,147 @@ def classify_staining(model, image, mask): # Según entiendo, esta es la funció
     return torch.argmax(predictions, dim=1).cpu().numpy()
 
 
-dir_general_directorios_train = "../../Imagenes_entrenamiento/"
 
-dir_general_anotaciones = "./anotaciones_coco_v2/"
+archivo_json = '../../config/entrenamiento_clasificacion.json'
+
+archivo_abierto = open(archivo_json)
+
+nombre_path_entrenamiento = "path_entrenamiento"
+
+nombre_path_validacion = "path_validacion"
+
+nombre_path_anotaciones = "path_anotaciones"
+
+nombre_path_guardado_modelo = "path_guardado_modelo"
+
+nombre_learning_rate = "learning_rate"
+
+nombre_momentum = "momentum"
+
+nombre_step_size = "step_size"
+
+nombre_gamma = "gamma"
+
+nombre_numero_epochs = "numero_epochs"
+
+nombre_batch_size = "batch_size"
+
+nombre_patience = "patience"
+
+nombre_valor_perdidas_aceptable = "valor_perdidas_aceptable"
+
+nombre_archivo_resultante = "archivo_resultante"
+
+valores_parametros_modelo = json.load(archivo_abierto)
+
+# Comprobaciones de que los valores cargados son correctos
+texto_valor_path_entrenamiento = valores_parametros_modelo[nombre_path_entrenamiento]
+if(Path(texto_valor_path_entrenamiento).exists() and Path(texto_valor_path_entrenamiento).is_dir()):
+    dir_general_directorios_train = texto_valor_path_entrenamiento
+else:
+    print("Error, el valor introducido para el directorio de entrenamiento no es válido")
+    exit()
+
+
+texto_valor_path_validacion = valores_parametros_modelo[nombre_path_validacion]
+if(Path(texto_valor_path_validacion).exists() and Path(texto_valor_path_validacion).is_dir()):
+    dir_general_directorios_test = texto_valor_path_validacion
+else:
+    print("Error, el valor introducido para el directorio de validación no es válido")
+    exit()
+
+
+# Se debe pasar un directorio general de ground truth, que contenga subdirectorios con las anotaciones COCO cuyos nombres coincidan con los de las carpetas de imágenes
+texto_valor_path_anotaciones = valores_parametros_modelo[nombre_path_anotaciones]
+
+if(Path(texto_valor_path_anotaciones).exists() and Path(texto_valor_path_anotaciones).is_dir()):
+    dir_general_anotaciones = texto_valor_path_anotaciones 
+else:
+    print("Error, el valor introducido para el directorio de anotaciones no es válido")
+    exit()
+
+
+texto_valor_path_guardado_modelo = valores_parametros_modelo[nombre_path_guardado_modelo]
+if es_ruta_valida(texto_valor_path_guardado_modelo):
+    if Path(texto_valor_path_guardado_modelo).exists():
+        print("Advertencia, el directorio de guardado del modelo ya existe, se sobreescribirá")
+    path_guardado_modelo = texto_valor_path_guardado_modelo
+else:
+    print("Error, el valor introducido para el path de guardado del modelo no es válido")
+    exit()
+
+
+texto_valor_learning_rate = valores_parametros_modelo[nombre_learning_rate]
+if es_num_positivo_string(texto_valor_learning_rate) and float(texto_valor_learning_rate) < 1:
+    learning_rate = float(texto_valor_learning_rate)
+else:
+    print("Error, el valor introducido para el learning rate no es válido")
+    exit()
+
+
+texto_valor_momentum = valores_parametros_modelo[nombre_momentum]
+if es_num_positivo_string(texto_valor_momentum) and float(texto_valor_momentum) < 1:
+    momentum = float(texto_valor_momentum)
+else:
+    print("Error, el valor introducido para el momentum no es válido")
+    exit()
+
+
+texto_valor_step_size = valores_parametros_modelo[nombre_step_size]
+if es_num_positivo_string(texto_valor_step_size):
+    step_size = int(texto_valor_step_size)
+else:
+    print("Error, el valor introducido para el step size no es válido")
+    exit()
+
+
+texto_valor_gamma = valores_parametros_modelo[nombre_gamma]
+if es_num_positivo_string(texto_valor_gamma) and float(texto_valor_gamma) < 1:
+    gamma = float(texto_valor_gamma)
+else:
+    print("Error, el valor introducido para el gamma no es válido")
+    exit()
+
+
+texto_numero_epochs = valores_parametros_modelo[nombre_numero_epochs]
+if es_num_positivo_string(texto_numero_epochs):
+    numero_epochs = int(texto_numero_epochs)
+else:
+    print("Error, el valor introducido para el número de épocas no es válido")
+    exit()
+
+
+texto_valor_batch_size = valores_parametros_modelo[nombre_batch_size]
+if es_num_positivo_string(texto_valor_batch_size):
+    batch_size = int(texto_valor_batch_size)
+else:
+    print("Error, el valor introducido para el batch size no es válido")
+    exit()
+
+
+texto_valor_patience = valores_parametros_modelo[nombre_patience]
+if es_num_positivo_string(texto_valor_patience):
+    patience = int(texto_valor_patience)
+else:
+    print("Error, el valor introducido para la paciencia (patience) no es válido")
+    exit()
+
+
+texto_valor_valor_perdidas_aceptable = valores_parametros_modelo[nombre_valor_perdidas_aceptable]
+if es_num_positivo_string(texto_valor_valor_perdidas_aceptable):
+    valor_perdidas_aceptable = float(texto_valor_valor_perdidas_aceptable)
+else:
+    print("Error, el valor introducido para el valor de pérdidas aceptable no es válido")
+    exit()
+
+
+texto_valor_archivo_resultante = valores_parametros_modelo[nombre_archivo_resultante]
+if isinstance(texto_valor_archivo_resultante, str) and len(texto_valor_archivo_resultante) > 0:
+    archivo_resultante = texto_valor_archivo_resultante
+else:
+    print("Error, el valor introducido para el archivo resultante no es válido")
+    exit()
+
 
 # Obtener las regiones y etiquetas de las imágenes
 lista_total_cell_regions, lista_total_labels = obtener_regiones_y_etiquetas(dir_general_directorios_train, dir_general_anotaciones)
@@ -161,21 +373,18 @@ lista_total_cell_regions, lista_total_labels = obtener_regiones_y_etiquetas(dir_
 X_train = np.array(lista_total_cell_regions)
 y_train = np.array(lista_total_labels)
 
-print("Valores mínimos y máximos de las etiquetas:", np.min(y_train), np.max(y_train))
-print("Número total de etiquetas:", len(y_train))
-#print("Ejemplo de etiquetas:", y_train[:10])
 
+gc.collect()  
 
 lista_total_cell_regions = []
 lista_total_labels = []
-
-dir_general_directorios_test = "../../Imagenes_validacion/"
 
 lista_total_cell_regions, lista_total_labels = obtener_regiones_y_etiquetas(dir_general_directorios_test, dir_general_anotaciones)
 
 X_val = np.array(lista_total_cell_regions)
 y_val = np.array(lista_total_labels)
 
+gc.collect()
 
 # Cargar ResNet18 preentrenado en ImageNet
 model = models.resnet18(weights='IMAGENET1K_V1')  # Modelo preentrenado
@@ -188,11 +397,6 @@ num_ftrs = model.fc.in_features
 model.fc = nn.Linear(num_ftrs, 4)  # Reemplazar la capa final
 model = model.to(device)  # Mover al dispositivo (CPU/GPU)
 
-
-learning_rate = 0.001  
-momentum = 0.9  # Momento para el optimizador
-step_size = 7  # Número de épocas antes de reducir el learning rate
-gamma = 0.1  # Factor de reducción del learning rate
 
 # Optimizador para fine-tuning (ajusta todos los parámetros)
 optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
@@ -217,25 +421,19 @@ transform = transforms.Compose([
 ])
 
 
+
 train_dataset = CellDataset(X_train, y_train, transform=transform)
-train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False) 
 
 val_dataset = CellDataset(X_val, y_val, transform=transform) 
-val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False)
+val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 
-numero_epochs = 100  # Número de épocas para el entrenamiento
-patience = 10
-
-# A lo mejor sería bueno poner 0.5 o un poco menos, para eso están las pruebas
-valor_perdidas_aceptable = 0.1  # Valor de pérdidas aceptable para detener el entrenamiento anticipadamente
 best_loss = float('inf') 
 counter = 0  # Contador para early stopping
 
-path_modelo = "../../models/clasificador_reentrenado.pth"
-
 gc.collect()  
-""""""
+
 # Entrenamiento con validación y early stopping
 for epoch in range(numero_epochs):
     model.train()  # Modo entrenamiento
@@ -246,6 +444,7 @@ for epoch in range(numero_epochs):
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
+        gc.collect()  
     
     model.eval()  # Modo evaluación
     val_loss = 0.0
@@ -259,6 +458,7 @@ for epoch in range(numero_epochs):
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+            gc.collect()  
     
     scheduler.step()  # Actualizar el scheduler
 
@@ -266,11 +466,12 @@ for epoch in range(numero_epochs):
 
     # Lógica de early stopping y guardado del modelo (sin cambios)
     print(f"Epoch {epoch+1}, Train Loss: {loss.item():.4f}, Val Loss: {val_loss:.4f}")
+
     # Early stopping
     if val_loss < best_loss:
         best_loss = val_loss
         counter = 0
-        torch.save(model.state_dict(), "../../models/clasificador_reentrenado.pth")
+        torch.save(model.state_dict(), path_guardado_modelo)
     else:
         counter += 1
         if counter >= patience:
@@ -283,68 +484,10 @@ for epoch in range(numero_epochs):
         break
 
 
-
-
-""" Código modificado por mi para entrenar el modelo
-numero_epochs = 10000  # Número de épocas para el entrenamiento
-
-best_loss = float('inf') 
-
-valor_perdidas_aceptable = 0.1  # Valor de pérdidas aceptable para detener el entrenamiento anticipadamente
-
-# Estes valores no son representativos de verdad, de momento, porque estoy probando todo con una sola imagen y 11 células
-patience = 100 # 10
-counter = 0
-
-for epoch in range(numero_epochs):
-    # Entrenamiento
-    model.train()
-    for images, labels in train_loader:
-        images, labels = images.to(device), labels.to(device)
-        outputs = model(images)
-        loss = criterion(outputs, labels)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-    # Validación
-    model.eval()
-    val_loss = 0.0
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        for images, labels in val_loader:
-            images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
-            val_loss += criterion(outputs, labels).item()
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-
-    val_loss /= len(val_loader)
-    accuracy = 100 * correct / total
-    print(f"Epoch {epoch+1}, Train Loss: {loss.item():.4f}, Val Loss: {val_loss:.4f}, Accuracy: {accuracy:.2f}%")
-
-    # Early stopping
-    if val_loss < best_loss:
-        best_loss = val_loss
-        counter = 0
-        torch.save(model.state_dict(), "best_model.pth")
-    else:
-        counter += 1
-        if counter >= patience:
-            print("Early stopping")
-            break
-
-    # Parada temprana 2
-    if(loss.item() < valor_perdidas_aceptable):
-        print(f"Entrenamiento detenido anticipadamente en la época {epoch+1} con pérdida {loss.item()}")
-        break    
-"""
-
-
-
 gc.collect()  
+
+
+
 
 # Cargar el modelo guardado para poder realizar la clasificación de tinciones
 model = models.resnet18(weights=None)  # Sin preentrenamiento
@@ -353,12 +496,10 @@ model.fc = nn.Linear(num_ftrs, 4)  # Capa final para 4 clases
 
 # Cargar los pesos guardados
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.load_state_dict(torch.load(path_modelo, map_location=device))
+model.load_state_dict(torch.load(path_guardado_modelo, map_location=device))
 model.to(device)
 model.eval() # Modo evaluación
 
-
-dir_general_directorios_test = "../../Imagenes_validacion/"
 
 dir_imagenes = [name for name in os.listdir(dir_general_directorios_test) if os.path.isdir(os.path.join(dir_general_directorios_test, name))]
 
@@ -370,7 +511,6 @@ for directorio in dir_imagenes:
 
 indices_clasificacion = []
 
-
 for imagen, mascara in zip(imagenes, mascaras):
     indices_clasificacion_aux = []
     image = cv2.imread(imagen, cv2.COLOR_BGR2RGB) 
@@ -379,25 +519,38 @@ for imagen, mascara in zip(imagenes, mascaras):
     indices_clasificacion.extend(indices_clasificacion_aux)
 
 
-#print("Índices de clasificación de tinciones:", indices_clasificacion)
-#print("Valores de tinción esperados:", y_val)
+lista_total_cell_regions, lista_total_labels = obtener_regiones_y_etiquetas(dir_general_directorios_test, dir_general_anotaciones)
 
 y_val = lista_total_labels
 
-precision = precision_score(y_val, indices_clasificacion, average='weighted')
-recall = recall_score(y_val, indices_clasificacion, average='weighted')
-f1 = f1_score(y_val, indices_clasificacion, average='weighted')
-accuracy = accuracy_score(y_val, indices_clasificacion)
-matriz_confusion = confusion_matrix(y_val, indices_clasificacion, labels=[0, 1, 2, 3])
+precision = precision_score(lista_total_labels, indices_clasificacion, average='weighted')
+recall = recall_score(lista_total_labels, indices_clasificacion, average='weighted')
+f1 = f1_score(lista_total_labels, indices_clasificacion, average='weighted')
+accuracy = accuracy_score(lista_total_labels, indices_clasificacion)
+matriz_confusion = confusion_matrix(lista_total_labels, indices_clasificacion, labels=[0, 1, 2, 3])
 
-print(f"Precisión: {precision:.4f}")
-print(f"Recall: {recall:.4f}")
-print(f"F1 Score: {f1:.4f}")
-print(f"Accuracy: {accuracy:.4f}")
 
-# Imprimir la matriz de confusión
-print("Matriz de confusión:")
-print(matriz_confusion)
+diccionario_tincion = {
+    "precision": precision,
+    "recall": recall,
+    "f1_score": f1,
+    "accuracy": accuracy,
+    "confusion_matrix": matriz_confusion.tolist()  # Convertir a lista para serializar en JSON
+}
+
+# Crea el directorio y subdirectorios si no existen
+os.makedirs(path_folder_metrics, exist_ok=True)  
+
+archivo_json = archivo_resultante + ".json"
+
+# Combinar directorio y nombre del archivo
+ruta_completa = os.path.join(path_folder_metrics, archivo_json)
+
+# Guardar el diccionario en el archivo JSON
+with open(ruta_completa, 'w') as archivo:
+    json.dump(diccionario_tincion, archivo, indent=4)  
+
+print(f"Archivo de métricas guardado en: {ruta_completa}")
 
 gc.collect()  
 
