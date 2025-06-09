@@ -13,7 +13,7 @@ model = models.Cellpose(gpu=True, model_type='cyto3')
 
 cargar_datos_internamente = True
 
-archivo_json = '../../config/training.json'
+archivo_json = '../../config/entrenamiento_segmentacion.json'
 
 
 archivo_abierto = open(archivo_json)
