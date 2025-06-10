@@ -255,6 +255,8 @@ nombre_valor_perdidas_aceptable = "valor_perdidas_aceptable"
 
 nombre_archivo_resultante = "archivo_resultante"
 
+nombre_data_augmentation = "data_augmentation"
+
 valores_parametros_modelo = json.load(archivo_abierto)
 
 # Comprobaciones de que los valores cargados son correctos
@@ -366,6 +368,16 @@ else:
     exit()
 
 
+texto_valor_nombre_data_augmentation = valores_parametros_modelo[nombre_data_augmentation]
+if (texto_valor_nombre_data_augmentation.isalpha() and texto_valor_nombre_data_augmentation.lower() == "true"):
+    data_augmentation = True
+elif (texto_valor_nombre_data_augmentation.isalpha() and texto_valor_nombre_data_augmentation.lower() == "false"):
+    data_augmentation = False
+else:
+    print("Error, el valor introducido para realizar o no data augmentation no es válido")
+    exit()
+
+
 # Obtener las regiones y etiquetas de las imágenes
 lista_total_cell_regions, lista_total_labels = obtener_regiones_y_etiquetas(dir_general_directorios_train, dir_general_anotaciones)
 
@@ -421,13 +433,18 @@ transform = transforms.Compose([
 ])
 
 
+if data_augmentation:
+    train_dataset = CellDataset(X_train, y_train, transform=transform)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False) 
 
-train_dataset = CellDataset(X_train, y_train, transform=transform)
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False) 
+    val_dataset = CellDataset(X_val, y_val, transform=transform) 
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+else:
+    train_dataset = CellDataset(X_train, y_train, transform=None)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False) 
 
-val_dataset = CellDataset(X_val, y_val, transform=transform) 
-val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-
+    val_dataset = CellDataset(X_val, y_val, transform=None) 
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 best_loss = float('inf') 
 counter = 0  # Contador para early stopping
