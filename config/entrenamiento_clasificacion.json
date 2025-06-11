@@ -5,7 +5,7 @@
     "path_guardado_modelo": "../../models/clasificador_reentrenado_sin_transform.pth",
     "learning_rate": 0.001,
     "momentum": 0.9,
-    "step_size": 7,
+    "step_size": 10,
     "gamma": 0.1,
     "numero_epochs": 100,
     "batch_size": 16,
