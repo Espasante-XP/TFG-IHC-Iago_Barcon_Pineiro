@@ -14,7 +14,7 @@ import os
 
 
 delim = "."
-path_folder_metrics = '../../resultados/'
+path_folder_metrics = '../../resultados/segmentacion/'
 
 
 def create_metrics_name(directory_path):
