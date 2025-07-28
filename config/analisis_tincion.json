@@ -1,6 +1,6 @@
 {
 
-    "dir_imagenes_y_mascaras": ["../../Imagenes_entrenamiento_reescalado"],
+    "dir_imagenes_y_mascaras": ["../../Imagenes_validacion_reescalado"],
     "dir_ground_truth_general": "./anotaciones_coco_v2/",
     "threshold_no_tincion": 1.0,
     "threshold_min": 3.75,
