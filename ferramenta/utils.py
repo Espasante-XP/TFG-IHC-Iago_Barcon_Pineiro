@@ -1,0 +1,378 @@
+# Copyright (c) 2023, NVIDIA Corporation & Affiliates. All rights reserved.
+#
+# This work is made available under the Nvidia Source Code License-NC.
+# To view a copy of this license, visit
+# https://github.com/NVlabs/prismer/blob/main/LICENSE
+
+import math
+import numpy as np
+from pycocotools.coco import COCO
+from pycocoevalcap.eval import COCOEvalCap
+import os
+import re
+
+
+
+def cosine_lr_schedule(optimizer, epoch, max_epoch, init_lr, min_lr):
+    """Decay the learning rate"""
+    lr = (init_lr - min_lr) * 0.5 * (1. + math.cos(math.pi * epoch / max_epoch)) + min_lr
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
+
+def warmup_lr_schedule(optimizer, step, max_step, init_lr, max_lr):
+    """Warmup the learning rate"""
+    lr = min(max_lr, init_lr + (max_lr - init_lr) * step / max_step)
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
+
+def step_lr_schedule(optimizer, epoch, init_lr, min_lr, decay_rate):
+    """Decay the learning rate"""
+    lr = max(min_lr, init_lr * (decay_rate ** epoch))
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
+
+def coco_caption_eval(coco_gt_root, results_file):
+    coco = COCO(coco_gt_root)
+    coco_result = coco.loadRes(results_file)
+    coco_eval = COCOEvalCap(coco, coco_result)
+    coco_eval.evaluate()
+    for metric, score in coco_eval.eval.items():
+        print(f'{metric}: {score:.3f}')
+    return coco_eval
+
+
+def create_ade20k_label_colormap():
+    """Creates a label colormap used in ADE20K segmentation benchmark.
+    Returns:
+      A colormap for visualizing segmentation results.
+    """
+    return np.asarray([
+        [0, 0, 0],
+        [120, 120, 120],
+        [180, 120, 120],
+        [6, 230, 230],
+        [80, 50, 50],
+        [4, 200, 3],
+        [120, 120, 80],
+        [140, 140, 140],
+        [204, 5, 255],
+        [230, 230, 230],
+        [4, 250, 7],
+        [224, 5, 255],
+        [235, 255, 7],
+        [150, 5, 61],
+        [120, 120, 70],
+        [8, 255, 51],
+        [255, 6, 82],
+        [143, 255, 140],
+        [204, 255, 4],
+        [255, 51, 7],
+        [204, 70, 3],
+        [0, 102, 200],
+        [61, 230, 250],
+        [255, 6, 51],
+        [11, 102, 255],
+        [255, 7, 71],
+        [255, 9, 224],
+        [9, 7, 230],
+        [220, 220, 220],
+        [255, 9, 92],
+        [112, 9, 255],
+        [8, 255, 214],
+        [7, 255, 224],
+        [255, 184, 6],
+        [10, 255, 71],
+        [255, 41, 10],
+        [7, 255, 255],
+        [224, 255, 8],
+        [102, 8, 255],
+        [255, 61, 6],
+        [255, 194, 7],
+        [255, 122, 8],
+        [0, 255, 20],
+        [255, 8, 41],
+        [255, 5, 153],
+        [6, 51, 255],
+        [235, 12, 255],
+        [160, 150, 20],
+        [0, 163, 255],
+        [140, 140, 140],
+        [250, 10, 15],
+        [20, 255, 0],
+        [31, 255, 0],
+        [255, 31, 0],
+        [255, 224, 0],
+        [153, 255, 0],
+        [0, 0, 255],
+        [255, 71, 0],
+        [0, 235, 255],
+        [0, 173, 255],
+        [31, 0, 255],
+        [11, 200, 200],
+        [255, 82, 0],
+        [0, 255, 245],
+        [0, 61, 255],
+        [0, 255, 112],
+        [0, 255, 133],
+        [255, 0, 0],
+        [255, 163, 0],
+        [255, 102, 0],
+        [194, 255, 0],
+        [0, 143, 255],
+        [51, 255, 0],
+        [0, 82, 255],
+        [0, 255, 41],
+        [0, 255, 173],
+        [10, 0, 255],
+        [173, 255, 0],
+        [0, 255, 153],
+        [255, 92, 0],
+        [255, 0, 255],
+        [255, 0, 245],
+        [255, 0, 102],
+        [255, 173, 0],
+        [255, 0, 20],
+        [255, 184, 184],
+        [0, 31, 255],
+        [0, 255, 61],
+        [0, 71, 255],
+        [255, 0, 204],
+        [0, 255, 194],
+        [0, 255, 82],
+        [0, 10, 255],
+        [0, 112, 255],
+        [51, 0, 255],
+        [0, 194, 255],
+        [0, 122, 255],
+        [0, 255, 163],
+        [255, 153, 0],
+        [0, 255, 10],
+        [255, 112, 0],
+        [143, 255, 0],
+        [82, 0, 255],
+        [163, 255, 0],
+        [255, 235, 0],
+        [8, 184, 170],
+        [133, 0, 255],
+        [0, 255, 92],
+        [184, 0, 255],
+        [255, 0, 31],
+        [0, 184, 255],
+        [0, 214, 255],
+        [255, 0, 112],
+        [92, 255, 0],
+        [0, 224, 255],
+        [112, 224, 255],
+        [70, 184, 160],
+        [163, 0, 255],
+        [153, 0, 255],
+        [71, 255, 0],
+        [255, 0, 163],
+        [255, 204, 0],
+        [255, 0, 143],
+        [0, 255, 235],
+        [133, 255, 0],
+        [255, 0, 235],
+        [245, 0, 255],
+        [255, 0, 122],
+        [255, 245, 0],
+        [10, 190, 212],
+        [214, 255, 0],
+        [0, 204, 255],
+        [20, 0, 255],
+        [255, 255, 0],
+        [0, 153, 255],
+        [0, 41, 255],
+        [0, 255, 204],
+        [41, 0, 255],
+        [41, 255, 0],
+        [173, 0, 255],
+        [0, 245, 255],
+        [71, 0, 255],
+        [122, 0, 255],
+        [0, 255, 184],
+        [0, 92, 255],
+        [184, 255, 0],
+        [0, 133, 255],
+        [255, 214, 0],
+        [25, 194, 194],
+        [102, 255, 0],
+        [92, 0, 255],
+    ])
+
+
+def natural_sort_key(s):
+    """
+    Función auxiliar para ordenar alfanuméricamente.
+    """
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+
+
+def obter_lista_ficheiros(ruta_carpeta, extension, suffix_to_filter=None):
+    """
+    Obtiene una lista de rutas de archivos dentro de una carpeta y sus subcarpetas,
+    filtrando por extensión y, opcionalmente, por sufijo.
+
+    :param ruta_carpeta: Ruta de la carpeta raíz donde buscar archivos.
+    :param extension: Extensión de los archivos a seleccionar (por ejemplo, '.png').
+    :param suffix_to_filter: Sufijo opcional para filtrar archivos específicos. 
+                             Si es None o una cadena vacía, no se aplica filtro adicional.
+    :return: Lista de rutas de archivos ordenadas alfanuméricamente.
+    """
+    variable_destino = []
+
+    # Recorrer la carpeta raíz y sus subcarpetas
+    for carpeta_raiz, _, archivos in os.walk(ruta_carpeta): 
+        for nombre_archivo in archivos:
+            # Separar el nombre del archivo y su extensión
+            nombre_base, ext = os.path.splitext(nombre_archivo)
+            
+            # Verificar si el archivo tiene la extensión deseada
+            if ext.lower() == extension.lower():
+                # Si se proporcionó un sufijo y el nombre base del archivo termina con ese sufijo
+                if suffix_to_filter and nombre_base.endswith(suffix_to_filter):
+                    ruta_imagen = os.path.join(carpeta_raiz, nombre_archivo)
+                    variable_destino.append(ruta_imagen)
+                # Si no se proporcionó sufijo o el sufijo es una cadena vacía, seleccionar todos los archivos con la extensión
+                elif suffix_to_filter is None or suffix_to_filter == "":
+                    ruta_imagen = os.path.join(carpeta_raiz, nombre_archivo)
+                    variable_destino.append(ruta_imagen)
+
+    # Ordenar las rutas alfanuméricamente
+    rutas_ordenadas = sorted(variable_destino, key=natural_sort_key)
+    return rutas_ordenadas
+
+
+def es_numero(cadena):
+    """
+    Comprueba si la cadena es un número (entero o decimal).
+        :param cadena: Cadena a comprobar.
+        :return: True si la cadena es un número, False en caso contrario.
+    """
+    try:
+        float(cadena)
+        return True
+    except ValueError:
+        return False
+
+
+def es_num_positivo_string(cadena: str) -> bool:
+    """
+    Comprueba si la cadena es un número positivo.
+        :param cadena: Cadena a comprobar.
+        :return: True si la cadena es un número positivo, False en caso contrario.
+    """
+
+    if not es_numero(cadena):
+        return False
+    else:
+        numero = float(cadena)
+    return numero > 0
+
+
+def contiene_caracteres(texto, caracteres): 
+    """
+    Devuelve True si el texto contiene al menos uno de los caracteres especificados.
+    """
+    return any(caracter in texto for caracter in caracteres)
+
+def es_nombre_archivo_valido(nombre_archivo: str) -> bool:
+    """
+    Comprueba si el nombre del archivo es válido.
+        :param nombre_archivo: Nombre del archivo a comprobar.
+        :return: True si el nombre del archivo es válido, False en caso contrario.
+    """
+    # Comprobar si el nombre del archivo contiene caracteres no permitidos
+    caracteres_invalidos = '\ /<>:"|?*'
+    if contiene_caracteres(nombre_archivo, caracteres_invalidos):
+        return False
+    
+    # Comprobar si el nombre del archivo es alfanumérico o contiene guiones bajos
+    if not es_alfanumerico_o_guion_bajo(nombre_archivo):
+        return False
+    
+    return True
+
+def es_ruta_valida(cadena: str) -> bool:
+    """
+    Comprueba si la cadena es una ruta válida.
+        :param cadena: Cadena a comprobar.
+        :return: True si la cadena es una ruta válida, False en caso contrario.
+    """
+    try:
+        if os.path.isabs(cadena) or os.path.relpath(cadena):
+            caracteres_invalidos = '<>:"|?*'
+            if contiene_caracteres(cadena, caracteres_invalidos):
+                return False
+            return True
+    except ValueError:
+        return False
+
+
+def es_extension_imagen_string(extension: str) -> bool:
+    """
+    Comprueba si la extensión proporcionada corresponde a un tipo de imagen válido:
+    'jpg', 'jpeg', 'png', 'bmp', 'gif', 'tiff', 'webp', 'svg'.
+
+        :param extension: Extensión de archivo (con o sin punto).
+        :return: True si la extensión es válida, False en caso contrario.
+    """
+
+    extensiones_imagen = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'tiff', 'webp', 'svg']
+    
+    extension = extension.lower().lstrip('.')
+    
+    return extension in extensiones_imagen
+
+
+def obtener_carpetas(directorio):
+    """
+    Obtiene una lista de carpetas en un directorio dado.
+        :param directorio: Ruta del directorio.
+        :return: Lista de nombres de carpetas con '/' al final.
+    """
+    carpetas = [nombre + '/' for nombre in os.listdir(directorio) if os.path.isdir(os.path.join(directorio, nombre))]
+    return carpetas
+
+
+def es_extension_mascara_string(extension: str) -> bool:
+    """
+    Comprueba si la extensión proporcionada corresponde a un tipo de máscara válido:
+    'npy', 'png', 'jpg', 'jpeg', 'tif', 'tiff'.
+
+        :param extension: Extensión de archivo (con o sin punto).
+        :return: True si la extensión es válida, False en caso contrario.
+    """
+
+    extensiones_mascara = ['npy', 'png', 'jpg', 'jpeg', 'tif', 'tiff']
+    
+    extension = extension.lower().lstrip('.')
+    
+    return extension in extensiones_mascara
+
+
+def es_alfanumerico_o_guion_bajo(cadena: str) -> bool:
+    """
+    Comprueba si la cadena es alfanumérica o contiene guiones bajos.
+        :param cadena: Cadena a comprobar.
+        :return: True si la cadena es alfanumérica o contiene guiones bajos, False en caso contrario.
+    """
+    patron = r'^[\w]+$'
+    
+    if re.fullmatch(patron, cadena):
+        return True
+    else:
+        return False
+
+
+def get_final_folder_name(path):
+    """
+    Función auxiliar que obtiene el nombre de la carpeta o archivo final de un path dado.
+        :param path: Ruta del directorio.
+        :return: Nombre de la carpeta o archivo final.
+    """
+    return os.path.basename(os.path.normpath(path))    
+
