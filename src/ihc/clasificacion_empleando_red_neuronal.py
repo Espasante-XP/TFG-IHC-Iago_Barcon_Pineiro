@@ -208,367 +208,408 @@ class CellDataset(Dataset):
 
 
 # Clasificación de nuevas células
-def classify_staining(model, image, mask): # Según entiendo, esta es la función que debo usar tras entrenar el modelo
+def classify_staining(model, image, mask, device=None): 
     """
     Clasifica las tinciones de las células en una imagen dada una máscara de segmentación.
-     :param model (nn.Module): Modelo de red neuronal entrenado para clasificar las tinciones.
+     :param model (nn.Module, Path, str): Modelo de red neuronal entrenado o ruta al modelo guardado.
      :param image (np.ndarray): Imagen original en formato RGB.
      :param mask (np.ndarray): Máscara de segmentación donde cada píxel representa una etiqueta de célula.
                              Las etiquetas deben ser enteros consecutivos empezando en 1.
+     :param device (torch.device): Dispositivo en el que se ejecutará el modelo (CPU o GPU). Si es None, se usa automáticamente.
      :return: indices_clasificacion (np.ndarray): Array de índices de clasificación de tinciones para cada célula.
     """
+    # Cargar el modelo desde una ruta si model es un Path o str
+    if isinstance(model, (str, Path)):
+        if device is None:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        modelo_predicciones = models.resnet18(weights=None)  
+        num_ftrs = modelo_predicciones.fc.in_features
+        modelo_predicciones.fc = nn.Linear(num_ftrs, 4)  # Capa final para 4 clases
+
+        modelo_predicciones.load_state_dict(torch.load(model, map_location=device))
+        modelo_predicciones.to(device)
+        modelo_predicciones.eval() # Modo evaluación
+
+    elif isinstance(model, nn.Module) and device is None:
+        modelo_predicciones = model
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        modelo_predicciones.to(device)
+
+    elif not isinstance(model, nn.Module):
+        raise TypeError("El argumento model debe ser un modelo PyTorch (nn.Module) o una ruta válida.")
+
     regions = extract_cell_regions(image, mask)
     regions = torch.tensor(regions, dtype=torch.float32).permute(0, 3, 1, 2).to(device)
     with torch.no_grad():
-        predictions = model(regions)
+        predictions = modelo_predicciones(regions)
     return torch.argmax(predictions, dim=1).cpu().numpy()
-
-
-
-archivo_json = '../../config/entrenamiento_clasificacion.json'
-
-archivo_abierto = open(archivo_json)
-
-nombre_path_entrenamiento = "path_entrenamiento"
-
-nombre_path_validacion = "path_validacion"
-
-nombre_path_anotaciones = "path_anotaciones"
-
-nombre_path_guardado_modelo = "path_guardado_modelo"
-
-nombre_learning_rate = "learning_rate"
-
-nombre_momentum = "momentum"
-
-nombre_step_size = "step_size"
-
-nombre_gamma = "gamma"
-
-nombre_numero_epochs = "numero_epochs"
-
-nombre_batch_size = "batch_size"
-
-nombre_patience = "patience"
-
-nombre_valor_perdidas_aceptable = "valor_perdidas_aceptable"
-
-nombre_archivo_resultante = "archivo_resultante"
-
-nombre_data_augmentation = "data_augmentation"
-
-valores_parametros_modelo = json.load(archivo_abierto)
-
-# Comprobaciones de que los valores cargados son correctos
-texto_valor_path_entrenamiento = valores_parametros_modelo[nombre_path_entrenamiento]
-if(Path(texto_valor_path_entrenamiento).exists() and Path(texto_valor_path_entrenamiento).is_dir()):
-    dir_general_directorios_train = texto_valor_path_entrenamiento
-else:
-    print("Error, el valor introducido para el directorio de entrenamiento no es válido")
-    exit()
-
-
-texto_valor_path_validacion = valores_parametros_modelo[nombre_path_validacion]
-if(Path(texto_valor_path_validacion).exists() and Path(texto_valor_path_validacion).is_dir()):
-    dir_general_directorios_test = texto_valor_path_validacion
-else:
-    print("Error, el valor introducido para el directorio de validación no es válido")
-    exit()
-
-
-# Se debe pasar un directorio general de ground truth, que contenga subdirectorios con las anotaciones COCO cuyos nombres coincidan con los de las carpetas de imágenes
-texto_valor_path_anotaciones = valores_parametros_modelo[nombre_path_anotaciones]
-
-if(Path(texto_valor_path_anotaciones).exists() and Path(texto_valor_path_anotaciones).is_dir()):
-    dir_general_anotaciones = texto_valor_path_anotaciones 
-else:
-    print("Error, el valor introducido para el directorio de anotaciones no es válido")
-    exit()
-
-
-texto_valor_path_guardado_modelo = valores_parametros_modelo[nombre_path_guardado_modelo]
-if es_ruta_valida(texto_valor_path_guardado_modelo):
-    if Path(texto_valor_path_guardado_modelo).exists():
-        print("Advertencia, el directorio de guardado del modelo ya existe, se sobreescribirá")
-    path_guardado_modelo = texto_valor_path_guardado_modelo
-else:
-    print("Error, el valor introducido para el path de guardado del modelo no es válido")
-    exit()
-
-
-texto_valor_learning_rate = valores_parametros_modelo[nombre_learning_rate]
-if es_num_positivo_string(texto_valor_learning_rate) and float(texto_valor_learning_rate) < 1:
-    learning_rate = float(texto_valor_learning_rate)
-else:
-    print("Error, el valor introducido para el learning rate no es válido")
-    exit()
-
-
-texto_valor_momentum = valores_parametros_modelo[nombre_momentum]
-if es_num_positivo_string(texto_valor_momentum) and float(texto_valor_momentum) < 1:
-    momentum = float(texto_valor_momentum)
-else:
-    print("Error, el valor introducido para el momentum no es válido")
-    exit()
-
-
-texto_valor_step_size = valores_parametros_modelo[nombre_step_size]
-if es_num_positivo_string(texto_valor_step_size):
-    step_size = int(texto_valor_step_size)
-else:
-    print("Error, el valor introducido para el step size no es válido")
-    exit()
-
-
-texto_valor_gamma = valores_parametros_modelo[nombre_gamma]
-if es_num_positivo_string(texto_valor_gamma) and float(texto_valor_gamma) < 1:
-    gamma = float(texto_valor_gamma)
-else:
-    print("Error, el valor introducido para el gamma no es válido")
-    exit()
-
-
-texto_numero_epochs = valores_parametros_modelo[nombre_numero_epochs]
-if es_num_positivo_string(texto_numero_epochs):
-    numero_epochs = int(texto_numero_epochs)
-else:
-    print("Error, el valor introducido para el número de épocas no es válido")
-    exit()
-
-
-texto_valor_batch_size = valores_parametros_modelo[nombre_batch_size]
-if es_num_positivo_string(texto_valor_batch_size):
-    batch_size = int(texto_valor_batch_size)
-else:
-    print("Error, el valor introducido para el batch size no es válido")
-    exit()
-
-
-texto_valor_patience = valores_parametros_modelo[nombre_patience]
-if es_num_positivo_string(texto_valor_patience):
-    patience = int(texto_valor_patience)
-else:
-    print("Error, el valor introducido para la paciencia (patience) no es válido")
-    exit()
-
-
-texto_valor_valor_perdidas_aceptable = valores_parametros_modelo[nombre_valor_perdidas_aceptable]
-if es_num_positivo_string(texto_valor_valor_perdidas_aceptable):
-    valor_perdidas_aceptable = float(texto_valor_valor_perdidas_aceptable)
-else:
-    print("Error, el valor introducido para el valor de pérdidas aceptable no es válido")
-    exit()
-
-
-texto_valor_archivo_resultante = valores_parametros_modelo[nombre_archivo_resultante]
-if isinstance(texto_valor_archivo_resultante, str) and len(texto_valor_archivo_resultante) > 0:
-    archivo_resultante = texto_valor_archivo_resultante
-else:
-    print("Error, el valor introducido para el archivo resultante no es válido")
-    exit()
-
-
-texto_valor_nombre_data_augmentation = valores_parametros_modelo[nombre_data_augmentation]
-if (texto_valor_nombre_data_augmentation.isalpha() and texto_valor_nombre_data_augmentation.lower() == "true"):
-    data_augmentation = True
-elif (texto_valor_nombre_data_augmentation.isalpha() and texto_valor_nombre_data_augmentation.lower() == "false"):
-    data_augmentation = False
-else:
-    print("Error, el valor introducido para realizar o no data augmentation no es válido")
-    exit()
-
-
-# Obtener las regiones y etiquetas de las imágenes
-lista_total_cell_regions, lista_total_labels = obtener_regiones_y_etiquetas(dir_general_directorios_train, dir_general_anotaciones)
-
-
-X_train = np.array(lista_total_cell_regions)
-y_train = np.array(lista_total_labels)
-
-
-gc.collect()  
-
-lista_total_cell_regions = []
-lista_total_labels = []
-
-lista_total_cell_regions, lista_total_labels = obtener_regiones_y_etiquetas(dir_general_directorios_test, dir_general_anotaciones)
-
-X_val = np.array(lista_total_cell_regions)
-y_val = np.array(lista_total_labels)
-
-gc.collect()
-
-# Cargar ResNet18 preentrenado en ImageNet
-model = models.resnet18(weights='IMAGENET1K_V1')  # Modelo preentrenado
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print("Usando dispositivo:", device)
-
-# Ajustar la última capa para tu número de clases (4 en este caso)
-num_ftrs = model.fc.in_features
-model.fc = nn.Linear(num_ftrs, 4)  # Reemplazar la capa final
-model = model.to(device)  # Mover al dispositivo (CPU/GPU)
-
-
-# Optimizador para fine-tuning (ajusta todos los parámetros)
-optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
-
-# Scheduler para reducir el learning rate
-scheduler = lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
-
-criterion = nn.CrossEntropyLoss()
-
-
-# Transformaciones para la normalización y aumento de datos
-transform = transforms.Compose([
-    transforms.ToPILImage(),
-    transforms.RandomHorizontalFlip(p=0.5),
-    transforms.RandomVerticalFlip(p=0.5),
-    transforms.RandomRotation(30),
-    transforms.RandomApply([
-        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1) # Hue en 0.1 es una variación de +-18º
-    ], p=0.5),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) # Normalización estándar para ResNet18
-])
-
-
-if data_augmentation:
-    train_dataset = CellDataset(X_train, y_train, transform=transform)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False) 
-
-    val_dataset = CellDataset(X_val, y_val, transform=transform) 
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-else:
-    train_dataset = CellDataset(X_train, y_train, transform=None)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False) 
-
-    val_dataset = CellDataset(X_val, y_val, transform=None) 
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-
-best_loss = float('inf') 
-counter = 0  # Contador para early stopping
-
-gc.collect()  
-
-# Entrenamiento con validación y early stopping
-for epoch in range(numero_epochs):
-    model.train()  # Modo entrenamiento
-    for images, labels in train_loader:
-        images, labels = images.to(device), labels.to(device)
-        optimizer.zero_grad()
-        outputs = model(images)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
-        gc.collect()  
     
-    model.eval()  # Modo evaluación
-    val_loss = 0.0
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        for images, labels in val_loader:
-            images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
-            val_loss += criterion(outputs, labels).item()
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-            gc.collect()  
-    
-    scheduler.step()  # Actualizar el scheduler
 
-    gc.collect()  # Limpiar la memoria de la GPU
+if __name__ == "__main__":
 
-    # Lógica de early stopping y guardado del modelo (sin cambios)
-    print(f"Epoch {epoch+1}, Train Loss: {loss.item():.4f}, Val Loss: {val_loss:.4f}")
+    archivo_json = '../../config/entrenamiento_clasificacion.json'
 
-    # Early stopping
-    if val_loss < best_loss:
-        best_loss = val_loss
-        counter = 0
-        torch.save(model.state_dict(), path_guardado_modelo)
+    archivo_abierto = open(archivo_json)
+
+    nombre_path_entrenamiento = "path_entrenamiento"
+
+    nombre_path_validacion = "path_validacion"
+
+    nombre_path_anotaciones = "path_anotaciones"
+
+    nombre_path_guardado_modelo = "path_guardado_modelo"
+
+    nombre_learning_rate = "learning_rate"
+
+    nombre_momentum = "momentum"
+
+    nombre_step_size = "step_size"
+
+    nombre_gamma = "gamma"
+
+    nombre_numero_epochs = "numero_epochs"
+
+    nombre_batch_size = "batch_size"
+
+    nombre_patience = "patience"
+
+    nombre_valor_perdidas_aceptable = "valor_perdidas_aceptable"
+
+    nombre_archivo_resultante = "archivo_resultante"
+
+    nombre_data_augmentation = "data_augmentation"
+
+    valores_parametros_modelo = json.load(archivo_abierto)
+
+    # Comprobaciones de que los valores cargados son correctos
+    texto_valor_path_entrenamiento = valores_parametros_modelo[nombre_path_entrenamiento]
+    if(Path(texto_valor_path_entrenamiento).exists() and Path(texto_valor_path_entrenamiento).is_dir()):
+        dir_general_directorios_train = texto_valor_path_entrenamiento
     else:
-        counter += 1
-        if counter >= patience:
-            print("Early stopping, no improvement in validation loss for", patience, "epochs.")
+        print("Error, el valor introducido para el directorio de entrenamiento no es válido")
+        exit()
+
+
+    texto_valor_path_validacion = valores_parametros_modelo[nombre_path_validacion]
+    if(Path(texto_valor_path_validacion).exists() and Path(texto_valor_path_validacion).is_dir()):
+        dir_general_directorios_test = texto_valor_path_validacion
+    else:
+        print("Error, el valor introducido para el directorio de validación no es válido")
+        exit()
+
+
+    # Se debe pasar un directorio general de ground truth, que contenga subdirectorios con las anotaciones COCO cuyos nombres coincidan con los de las carpetas de imágenes
+    texto_valor_path_anotaciones = valores_parametros_modelo[nombre_path_anotaciones]
+
+    if(Path(texto_valor_path_anotaciones).exists() and Path(texto_valor_path_anotaciones).is_dir()):
+        dir_general_anotaciones = texto_valor_path_anotaciones 
+    else:
+        print("Error, el valor introducido para el directorio de anotaciones no es válido")
+        exit()
+
+
+    texto_valor_path_guardado_modelo = valores_parametros_modelo[nombre_path_guardado_modelo]
+    if es_ruta_valida(texto_valor_path_guardado_modelo):
+        if Path(texto_valor_path_guardado_modelo).exists():
+            print("Advertencia, el directorio de guardado del modelo ya existe, se sobreescribirá")
+        path_guardado_modelo = texto_valor_path_guardado_modelo
+    else:
+        print("Error, el valor introducido para el path de guardado del modelo no es válido")
+        exit()
+
+
+    texto_valor_learning_rate = valores_parametros_modelo[nombre_learning_rate]
+    if es_num_positivo_string(texto_valor_learning_rate) and float(texto_valor_learning_rate) < 1:
+        learning_rate = float(texto_valor_learning_rate)
+    else:
+        print("Error, el valor introducido para el learning rate no es válido")
+        exit()
+
+
+    texto_valor_momentum = valores_parametros_modelo[nombre_momentum]
+    if es_num_positivo_string(texto_valor_momentum) and float(texto_valor_momentum) < 1:
+        momentum = float(texto_valor_momentum)
+    else:
+        print("Error, el valor introducido para el momentum no es válido")
+        exit()
+
+
+    texto_valor_step_size = valores_parametros_modelo[nombre_step_size]
+    if es_num_positivo_string(texto_valor_step_size):
+        step_size = int(texto_valor_step_size)
+    else:
+        print("Error, el valor introducido para el step size no es válido")
+        exit()
+
+
+    texto_valor_gamma = valores_parametros_modelo[nombre_gamma]
+    if es_num_positivo_string(texto_valor_gamma) and float(texto_valor_gamma) < 1:
+        gamma = float(texto_valor_gamma)
+    else:
+        print("Error, el valor introducido para el gamma no es válido")
+        exit()
+
+
+    texto_numero_epochs = valores_parametros_modelo[nombre_numero_epochs]
+    if es_num_positivo_string(texto_numero_epochs):
+        numero_epochs = int(texto_numero_epochs)
+    else:
+        print("Error, el valor introducido para el número de épocas no es válido")
+        exit()
+
+
+    texto_valor_batch_size = valores_parametros_modelo[nombre_batch_size]
+    if es_num_positivo_string(texto_valor_batch_size):
+        batch_size = int(texto_valor_batch_size)
+    else:
+        print("Error, el valor introducido para el batch size no es válido")
+        exit()
+
+
+    texto_valor_patience = valores_parametros_modelo[nombre_patience]
+    if es_num_positivo_string(texto_valor_patience):
+        patience = int(texto_valor_patience)
+    else:
+        print("Error, el valor introducido para la paciencia (patience) no es válido")
+        exit()
+
+
+    texto_valor_valor_perdidas_aceptable = valores_parametros_modelo[nombre_valor_perdidas_aceptable]
+    if es_num_positivo_string(texto_valor_valor_perdidas_aceptable):
+        valor_perdidas_aceptable = float(texto_valor_valor_perdidas_aceptable)
+    else:
+        print("Error, el valor introducido para el valor de pérdidas aceptable no es válido")
+        exit()
+
+
+    texto_valor_archivo_resultante = valores_parametros_modelo[nombre_archivo_resultante]
+    if isinstance(texto_valor_archivo_resultante, str) and len(texto_valor_archivo_resultante) > 0:
+        archivo_resultante = texto_valor_archivo_resultante
+    else:
+        print("Error, el valor introducido para el archivo resultante no es válido")
+        exit()
+
+
+    texto_valor_nombre_data_augmentation = valores_parametros_modelo[nombre_data_augmentation]
+    if (texto_valor_nombre_data_augmentation.isalpha() and texto_valor_nombre_data_augmentation.lower() == "true"):
+        data_augmentation = True
+    elif (texto_valor_nombre_data_augmentation.isalpha() and texto_valor_nombre_data_augmentation.lower() == "false"):
+        data_augmentation = False
+    else:
+        print("Error, el valor introducido para realizar o no data augmentation no es válido")
+        exit()
+
+
+    # Obtener las regiones y etiquetas de las imágenes
+    lista_total_cell_regions, lista_total_labels = obtener_regiones_y_etiquetas(dir_general_directorios_train, dir_general_anotaciones)
+
+
+    X_train = np.array(lista_total_cell_regions)
+    y_train = np.array(lista_total_labels)
+
+
+    gc.collect()  
+
+    lista_total_cell_regions = []
+    lista_total_labels = []
+
+    lista_total_cell_regions, lista_total_labels = obtener_regiones_y_etiquetas(dir_general_directorios_test, dir_general_anotaciones)
+
+    X_val = np.array(lista_total_cell_regions)
+    y_val = np.array(lista_total_labels)
+
+    gc.collect()
+
+    # Cargar ResNet18 preentrenado en ImageNet
+    model = models.resnet18(weights='IMAGENET1K_V1')  # Modelo preentrenado
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Usando dispositivo:", device)
+
+    # Ajustar la última capa para tu número de clases (4 en este caso)
+    num_ftrs = model.fc.in_features
+    model.fc = nn.Linear(num_ftrs, 4)  # Reemplazar la capa final
+    model = model.to(device)  # Mover al dispositivo (CPU/GPU)
+
+
+    # Optimizador para fine-tuning (ajusta todos los parámetros)
+    optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
+
+    # Scheduler para reducir el learning rate
+    scheduler = lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
+
+    criterion = nn.CrossEntropyLoss()
+
+
+    # Transformaciones para la normalización y aumento de datos
+    transform = transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomVerticalFlip(p=0.5),
+        transforms.RandomRotation(30),
+        #transforms.RandomApply([ # No tendría el efecto esperado en nuestro caso
+        #    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1) # Hue en 0.1 es una variación de +-18º
+        #], p=0.5),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) # Normalización estándar para ResNet18
+    ])
+
+    # Función de transformación solo para formato, sin aumento de datos, no salió como se esperaba
+    transform_only_format = transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) # Normalización estándar para ResNet18
+    ])
+
+
+    if data_augmentation:
+        train_dataset = CellDataset(X_train, y_train, transform=transform)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False) 
+
+        val_dataset = CellDataset(X_val, y_val, transform=transform) 
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    else:
+        train_dataset = CellDataset(X_train, y_train, transform=None) 
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False) 
+
+        val_dataset = CellDataset(X_val, y_val, transform=None) 
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+    best_loss = float('inf') 
+    counter = 0  # Contador para early stopping
+
+    gc.collect()  
+
+    # Entrenamiento con validación y early stopping
+    for epoch in range(numero_epochs):
+        epoch_train_loss = 0.0
+        model.train()  # Modo entrenamiento
+        for images, labels in train_loader:
+            images, labels = images.to(device), labels.to(device)
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            epoch_train_loss += loss.item()
+            loss.backward()
+            optimizer.step()
+            gc.collect()  
+        
+        model.eval()  # Modo evaluación
+        val_loss = 0.0
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for images, labels in val_loader:
+                images, labels = images.to(device), labels.to(device)
+                outputs = model(images)
+                val_loss += criterion(outputs, labels).item()
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+                gc.collect()  
+        
+        scheduler.step()  # Actualizar el scheduler
+
+        gc.collect()  # Limpiar la memoria de la GPU
+
+        perdida_media_train = epoch_train_loss / len(train_loader)
+        perdida_media_val = val_loss / len(val_loader)
+
+        # Lógica de early stopping y guardado del modelo
+        print(f"Epoch {epoch+1}, Train Loss: {perdida_media_train:.4f}, Val Loss: {perdida_media_val:.4f}")
+
+        # Early stopping
+        if perdida_media_val < best_loss:
+            best_loss = perdida_media_val
+            counter = 0
+            torch.save(model.state_dict(), path_guardado_modelo)
+        else:
+            counter += 1
+            if counter >= patience:
+                print("Early stopping, no improvement in validation loss for", patience, "epochs.")
+                break
+        # Parada temprana 2
+        if(perdida_media_train < valor_perdidas_aceptable):
+            print(f"Entrenamiento detenido anticipadamente en la época {epoch+1} con pérdida {perdida_media_train:.4f}")
             break
+    
 
-    # Parada temprana 2
-    if(loss.item() < valor_perdidas_aceptable):
-        print(f"Entrenamiento detenido anticipadamente en la época {epoch+1} con pérdida {loss.item()}")
-        break
+    gc.collect()  
 
 
-gc.collect()  
+    # Cargar el modelo guardado para poder realizar la clasificación de tinciones
+    model = models.resnet18(weights=None)  # Sin preentrenamiento
+    num_ftrs = model.fc.in_features
+    model.fc = nn.Linear(num_ftrs, 4)  # Capa final para 4 clases
 
 
+    # Cargar los pesos guardados
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.load_state_dict(torch.load(path_guardado_modelo, map_location=device))
+    model.to(device)
+    model.eval() # Modo evaluación
 
 
-# Cargar el modelo guardado para poder realizar la clasificación de tinciones
-model = models.resnet18(weights=None)  # Sin preentrenamiento
-num_ftrs = model.fc.in_features
-model.fc = nn.Linear(num_ftrs, 4)  # Capa final para 4 clases
+    dir_imagenes = [name for name in os.listdir(dir_general_directorios_test) if os.path.isdir(os.path.join(dir_general_directorios_test, name))]
 
-# Cargar los pesos guardados
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.load_state_dict(torch.load(path_guardado_modelo, map_location=device))
-model.to(device)
-model.eval() # Modo evaluación
+    dir_imagenes = [os.path.join(dir_general_directorios_test, name) for name in dir_imagenes if os.path.isdir(os.path.join(dir_general_directorios_test, name))]
 
+    for directorio in dir_imagenes:
+        imagenes = obter_lista_ficheiros(directorio, ".jpg")
+        mascaras = obter_lista_ficheiros(directorio, ".npy")
 
-dir_imagenes = [name for name in os.listdir(dir_general_directorios_test) if os.path.isdir(os.path.join(dir_general_directorios_test, name))]
+    indices_clasificacion = []
 
-dir_imagenes = [os.path.join(dir_general_directorios_test, name) for name in dir_imagenes if os.path.isdir(os.path.join(dir_general_directorios_test, name))]
-
-for directorio in dir_imagenes:
-    imagenes = obter_lista_ficheiros(directorio, ".jpg")
-    mascaras = obter_lista_ficheiros(directorio, ".npy")
-
-indices_clasificacion = []
-
-for imagen, mascara in zip(imagenes, mascaras):
-    indices_clasificacion_aux = []
-    image = cv2.imread(imagen, cv2.COLOR_BGR2RGB) 
-    mask = np.load(mascara)
-    indices_clasificacion_aux = classify_staining(model, image, mask)
-    indices_clasificacion.extend(indices_clasificacion_aux)
+    for imagen, mascara in zip(imagenes, mascaras):
+        indices_clasificacion_aux = []
+        image = cv2.imread(imagen, cv2.COLOR_BGR2RGB) 
+        mask = np.load(mascara)
+        indices_clasificacion_aux = classify_staining(model, image, mask, device)
+        indices_clasificacion.extend(indices_clasificacion_aux)
 
 
-lista_total_cell_regions, lista_total_labels = obtener_regiones_y_etiquetas(dir_general_directorios_test, dir_general_anotaciones)
+    lista_total_cell_regions, lista_total_labels = obtener_regiones_y_etiquetas(dir_general_directorios_test, dir_general_anotaciones)
 
-y_val = lista_total_labels
+    y_val = lista_total_labels
 
-precision = precision_score(lista_total_labels, indices_clasificacion, average='weighted')
-recall = recall_score(lista_total_labels, indices_clasificacion, average='weighted')
-f1 = f1_score(lista_total_labels, indices_clasificacion, average='weighted')
-accuracy = accuracy_score(lista_total_labels, indices_clasificacion)
-matriz_confusion = confusion_matrix(lista_total_labels, indices_clasificacion, labels=[0, 1, 2, 3])
+    precision = precision_score(lista_total_labels, indices_clasificacion, average='weighted')
+    recall = recall_score(lista_total_labels, indices_clasificacion, average='weighted')
+    f1 = f1_score(lista_total_labels, indices_clasificacion, average='weighted')
+    accuracy = accuracy_score(lista_total_labels, indices_clasificacion)
+    matriz_confusion = confusion_matrix(lista_total_labels, indices_clasificacion, labels=[0, 1, 2, 3])
 
 
-diccionario_tincion = {
-    "precision": precision,
-    "recall": recall,
-    "f1_score": f1,
-    "accuracy": accuracy,
-    "confusion_matrix": matriz_confusion.tolist()  # Convertir a lista para serializar en JSON
-}
+    diccionario_tincion = {
+        "precision": precision,
+        "recall": recall,
+        "f1_score": f1,
+        "accuracy": accuracy,
+        "confusion_matrix": matriz_confusion.tolist()  # Convertir a lista para serializar en JSON
+    }
 
-# Crea el directorio y subdirectorios si no existen
-os.makedirs(path_folder_metrics, exist_ok=True)  
+    print("Métricas de clasificación:")
+    print(f"Precisión: {precision:.4f}")
+    print(f"Recall: {recall:.4f}")
+    print(f"F1 Score: {f1:.4f}")
+    print(f"Accuracy: {accuracy:.4f}")
+    print("Matriz de confusión:")
+    print(matriz_confusion)
 
-archivo_json = archivo_resultante + ".json"
+    # Crea el directorio y subdirectorios si no existen
+    os.makedirs(path_folder_metrics, exist_ok=True)  
 
-# Combinar directorio y nombre del archivo
-ruta_completa = os.path.join(path_folder_metrics, archivo_json)
+    archivo_json = archivo_resultante + ".json"
 
-# Guardar el diccionario en el archivo JSON
-with open(ruta_completa, 'w') as archivo:
-    json.dump(diccionario_tincion, archivo, indent=4)  
+    # Combinar directorio y nombre del archivo
+    ruta_completa = os.path.join(path_folder_metrics, archivo_json)
 
-print(f"Archivo de métricas guardado en: {ruta_completa}")
+    # Guardar el diccionario en el archivo JSON
+    with open(ruta_completa, 'w') as archivo:
+        json.dump(diccionario_tincion, archivo, indent=4)  
 
-gc.collect()  
+    print(f"Archivo de métricas guardado en: {ruta_completa}")
 
-exit(0)
+    gc.collect()  
+
+    exit(0)
