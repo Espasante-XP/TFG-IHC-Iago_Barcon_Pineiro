@@ -249,8 +249,8 @@ def obter_lista_ficheiros(ruta_carpeta, extension, suffix_to_filter=None):
 def es_numero(cadena):
     """
     Comprueba si la cadena es un número (entero o decimal).
-    :param cadena: Cadena a comprobar.
-    :return: True si la cadena es un número, False en caso contrario.
+        :param cadena: Cadena a comprobar.
+        :return: True si la cadena es un número, False en caso contrario.
     """
     try:
         float(cadena)
@@ -262,8 +262,8 @@ def es_numero(cadena):
 def es_num_positivo_string(cadena: str) -> bool:
     """
     Comprueba si la cadena es un número positivo.
-    :param cadena: Cadena a comprobar.
-    :return: True si la cadena es un número positivo, False en caso contrario.
+        :param cadena: Cadena a comprobar.
+        :return: True si la cadena es un número positivo, False en caso contrario.
     """
 
     if not es_numero(cadena):
@@ -279,12 +279,28 @@ def contiene_caracteres(texto, caracteres):
     """
     return any(caracter in texto for caracter in caracteres)
 
+def es_nombre_archivo_valido(nombre_archivo: str) -> bool:
+    """
+    Comprueba si el nombre del archivo es válido.
+        :param nombre_archivo: Nombre del archivo a comprobar.
+        :return: True si el nombre del archivo es válido, False en caso contrario.
+    """
+    # Comprobar si el nombre del archivo contiene caracteres no permitidos
+    caracteres_invalidos = '\ /<>:"|?*'
+    if contiene_caracteres(nombre_archivo, caracteres_invalidos):
+        return False
+    
+    # Comprobar si el nombre del archivo es alfanumérico o contiene guiones bajos
+    if not es_alfanumerico_o_guion_bajo(nombre_archivo):
+        return False
+    
+    return True
 
 def es_ruta_valida(cadena: str) -> bool:
     """
     Comprueba si la cadena es una ruta válida.
-    :param cadena: Cadena a comprobar.
-    :return: True si la cadena es una ruta válida, False en caso contrario.
+        :param cadena: Cadena a comprobar.
+        :return: True si la cadena es una ruta válida, False en caso contrario.
     """
     try:
         if os.path.isabs(cadena) or os.path.relpath(cadena):
@@ -300,8 +316,9 @@ def es_extension_imagen_string(extension: str) -> bool:
     """
     Comprueba si la extensión proporcionada corresponde a un tipo de imagen válido:
     'jpg', 'jpeg', 'png', 'bmp', 'gif', 'tiff', 'webp', 'svg'.
-    :param extension: Extensión de archivo (con o sin punto).
-    :return: True si la extensión es válida, False en caso contrario.
+
+        :param extension: Extensión de archivo (con o sin punto).
+        :return: True si la extensión es válida, False en caso contrario.
     """
 
     extensiones_imagen = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'tiff', 'webp', 'svg']
@@ -314,8 +331,8 @@ def es_extension_imagen_string(extension: str) -> bool:
 def obtener_carpetas(directorio):
     """
     Obtiene una lista de carpetas en un directorio dado.
-    :param directorio: Ruta del directorio.
-    :return: Lista de nombres de carpetas con '/' al final.
+        :param directorio: Ruta del directorio.
+        :return: Lista de nombres de carpetas con '/' al final.
     """
     carpetas = [nombre + '/' for nombre in os.listdir(directorio) if os.path.isdir(os.path.join(directorio, nombre))]
     return carpetas
@@ -325,8 +342,9 @@ def es_extension_mascara_string(extension: str) -> bool:
     """
     Comprueba si la extensión proporcionada corresponde a un tipo de máscara válido:
     'npy', 'png', 'jpg', 'jpeg', 'tif', 'tiff'.
-    :param extension: Extensión de archivo (con o sin punto).
-    :return: True si la extensión es válida, False en caso contrario.
+
+        :param extension: Extensión de archivo (con o sin punto).
+        :return: True si la extensión es válida, False en caso contrario.
     """
 
     extensiones_mascara = ['npy', 'png', 'jpg', 'jpeg', 'tif', 'tiff']
@@ -339,8 +357,8 @@ def es_extension_mascara_string(extension: str) -> bool:
 def es_alfanumerico_o_guion_bajo(cadena: str) -> bool:
     """
     Comprueba si la cadena es alfanumérica o contiene guiones bajos.
-    :param cadena: Cadena a comprobar.
-    :return: True si la cadena es alfanumérica o contiene guiones bajos, False en caso contrario.
+        :param cadena: Cadena a comprobar.
+        :return: True si la cadena es alfanumérica o contiene guiones bajos, False en caso contrario.
     """
     patron = r'^[\w]+$'
     
@@ -352,9 +370,9 @@ def es_alfanumerico_o_guion_bajo(cadena: str) -> bool:
 
 def get_final_folder_name(path):
     """
-    Función auxiliar que obtiene el nombre de la carpeta final de un path dado.
-    :param path: Ruta del directorio.
-    :return: Nombre de la carpeta final.
+    Función auxiliar que obtiene el nombre de la carpeta o archivo final de un path dado.
+        :param path: Ruta del directorio.
+        :return: Nombre de la carpeta o archivo final.
     """
     return os.path.basename(os.path.normpath(path))    
 
