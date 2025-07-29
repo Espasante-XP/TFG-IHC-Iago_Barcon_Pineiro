@@ -7,6 +7,11 @@ from utils import obter_lista_ficheiros, es_numero, es_alfanumerico_o_guion_bajo
 from parametros_HSV_RGB_LAB_de_imagenes import obtener_datos_RGB_normalizados_de_imagenes_distancias
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, confusion_matrix
 
+
+# Ya no se usa porque se ha empleado el modelo ResNet para la clasificación de la tinción de las células
+
+# Puede haber problemas si las categorías de las tinciones anotadas manualmenteno están en el rango de 1 a 4
+
 # Directorios
 path_folder_metrics = '../../resultados/clasificacion_tincion/'
 
@@ -36,7 +41,7 @@ def obtener_directorios(ruta):
         return []
 
 
-archivo_json = '../../config/analisis_tincion.json'
+archivo_json = '../../config/umbrales_tincion.json'
 
 archivo_abierto = open(archivo_json)
 
@@ -196,9 +201,9 @@ for directorio in lista_directorios:
         image_info = image_info[0]
         
         # Obtener el nombre base de la imagen sin extensión
-        image_name_base = os.path.splitext(image_info['file_name'])[0]  # Ej: "Image_1242" en lugar de "Image_1242.jpg"
+        image_name_base = os.path.splitext(image_info['file_name'])[0]
         
-        # Verificar si la carpeta de la imagen existe (sin extensión)
+        # Verificar si la carpeta de la imagen existe
         if image_name_base not in carpetas_imagenes:
             print(f"Advertencia: La carpeta '{image_name_base}' no existe en '{dir_carpeta_imagenes}'")
             continue
@@ -206,6 +211,7 @@ for directorio in lista_directorios:
         # Ruta a los archivos de células
         ruta_carpeta_imagen = os.path.join(dir_carpeta_imagenes, image_name_base)
         archivos_celulas = obter_lista_ficheiros(ruta_carpeta_imagen, ".json")
+        
         if not archivos_celulas:
             print(f"No se encontraron archivos de células en la carpeta: {ruta_carpeta_imagen}")
             continue
@@ -216,10 +222,10 @@ for directorio in lista_directorios:
         # Obtener valores predichos desde archivos JSON
         valores_predichos = []
         for archivo_celula in archivos_celulas_ordenados:
-            diccionario_celula = procesar_archivo(archivo_celula)  # Asegúrate de que esta función exista
+            diccionario_celula = procesar_archivo(archivo_celula)
             if 'tincion' in diccionario_celula:
                 valores_predichos.append(diccionario_celula['tincion'])
-        
+
         # Obtener anotaciones ground truth desde COCO
         ann_ids = coco.getAnnIds(imgIds=image_id)
         annotations = coco.loadAnns(ann_ids)
@@ -227,7 +233,7 @@ for directorio in lista_directorios:
         
         # Comparar longitudes y rellenar con -1 si es necesario
         if len(valores_predichos) != len(valores_ground_truth):
-
+            
             if len(valores_predichos) < len(valores_ground_truth):
                 print(f"La longitud de valores predichos es menor que la de ground truth para la imagen '{image_name_base}' en el directorio '{directorio}'")
             elif len(valores_predichos) > len(valores_ground_truth):
@@ -244,6 +250,7 @@ for directorio in lista_directorios:
         # Agregar valores a las listas principales
         valores_tincion_predichos.extend(valores_predichos)
         valores_tincion_ground_truth.extend(valores_ground_truth)
+
     gc.collect()
 
 
@@ -263,6 +270,10 @@ recall = recall_score(y_true_filtrado, y_pred_filtrado, average='weighted')
 f1 = f1_score(y_true_filtrado, y_pred_filtrado, average='weighted')
 accuracy = accuracy_score(y_true_filtrado, y_pred_filtrado)
 matriz_confusion = confusion_matrix(y_true_filtrado, y_pred_filtrado, labels=[1, 2, 3, 4])
+
+# Imprimir la matriz de confusión
+print("Matriz de confusión:")
+print(matriz_confusion)
 
 
 # Si acaso mirar de añadir otra línea con los valores de la media usando micro

@@ -6,6 +6,6 @@
     "threshold_min": 3.75,
     "threshold_max": 6.0,
     "threshold_max_area": 0.7,
-    "archivo_resultante": "metricas_clasificacion_tincion"
+    "archivo_resultante": "metricas_clasificacion_tincion_umbrales"
 
 }
