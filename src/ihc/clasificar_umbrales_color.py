@@ -5,23 +5,22 @@ from utils import obter_lista_ficheiros
 import os, shutil, gc
 import json
 
+# Esta función tiene como objetivo crear la estructura de directorios que usaran las funciones de código crear_grafica_umbrales.py
+# EL directorio general se corresponde con el directorio donde se guardan los resultados de ejecutar las distintas funciones del 
+# código parametros_HSV_RGB_LAB_de_imagenes.py
 
-# para clasificar las células de CLAHE y HSV_normalizado hay que modificar los valores de la lista 
-# carpeta_datos y cambiar HSV por el que se desee
-
+# Ya no se usa porque se ha empleado el modelo ResNet para la clasificación de la tinción de las células
 
 carpetas_clasificacion = ["sin tincion", "minima", "media", "maxima"]
 
-carpetas_datos = ["HSV", "RGB", "LAB"]
+carpetas_datos = ["RGB"]
 
-dir_general = "../../valores_comp_conexas/"
-#dir_general = "../../parametros_HSV_RGB_LAB/" # parametros_HSV_RGB_LAB
+dir_general = "../../parametros_HSV_RGB_LAB/" 
 
 dir_nuevo_general = "../../valores_clasif_tincion"
 
 dir_anotaciones_coco_general = "./anotaciones_coco_v2"
 
-umbral_porcentaje_tincion = 0.7 # Umbral de tinción para clasificar como "máxima"
 
 
 def obtener_indices_por_categoria(fuentes):
@@ -125,6 +124,8 @@ for anotaciones_coco in lista_anotaciones_coco:
     
     # Validar que hay 4 categorías (tengo que darle una vuelta)
     if len(lista_indices) != 4: 
+        print("Anotaciones COCO: ", anotaciones_coco)
+        print("Lista índices: ", lista_indices)
         raise ValueError(f"Se esperaban 4 categorías, pero se encontraron {len(lista_indices)} en {anotaciones_coco}")
     
     
@@ -160,7 +161,6 @@ for anotaciones_coco in lista_anotaciones_coco:
                 carpeta_imagen = os.path.basename(ruta_completa)  # Ej: 'Image_994'
                 carpeta_grupo = os.path.basename(os.path.dirname(ruta_completa))  # Ej: 'FNB 4_3'
                 
-
                 with open(archivo, 'r') as file:
                     data = json.load(file)
 
@@ -169,42 +169,6 @@ for anotaciones_coco in lista_anotaciones_coco:
 
                 with open(archivo, 'w') as file:
                     json.dump(data, file, indent=2)
-
-
-                # Construir ruta destino
-                """
-                if carpetas_clasificacion[categoria_idx] == "maxima" and tipo_dato == "HSV": 
-                    # El filtrado está bien, pero para los valores de ground truth no tiene sentido hacerlo porque son los valores reales
-
-                    with open(archivo, 'r') as file:
-                        data = json.load(file)
-                    print("Archivo: ", archivo)
-                    if data["area_tincion"] < umbral_porcentaje_tincion:
-                        dir_tincion = "media"
-                        print("area_tincion: ", data["area_tincion"])
-                        print("Archivo: ", archivo)
-                        print("Pasa a ser tinción media")
-                        #exit()
-                    else:
-                        dir_tincion = "maxima"
-                    #dir_tincion = "media"
-
-                    dir_destino = os.path.join(
-                        dir_nuevo_general,
-                        tipo_dato,
-                        dir_tincion, # Tipo de tinción (ej: "media" o "maxima")
-                        carpeta_grupo,    # ← Carpeta del grupo (ej: carpeta_grupo_imagenes7)
-                        carpeta_imagen    # ← Carpeta de la imagen (ej: Imagen_11)
-                    )
-                else:
-                    dir_destino = os.path.join(
-                        dir_nuevo_general,
-                        tipo_dato,
-                        carpetas_clasificacion[categoria_idx], # ← Carpeta de la tinción (ej: "maxima")
-                        carpeta_grupo,    # ← Carpeta del grupo (ej: carpeta_grupo_imagenes7)
-                        carpeta_imagen    # ← Carpeta de la imagen (ej: Imagen_11)
-                    )
-                """
 
 
                 dir_destino = os.path.join(
