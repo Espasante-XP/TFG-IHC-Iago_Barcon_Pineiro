@@ -1,0 +1,16 @@
+{
+    "path_entrenamiento":"../../Imagenes_entrenamiento_reescalado/",
+    "path_validacion":"../../Imagenes_validacion_reescalado/",
+    "path_anotaciones": "./anotaciones_coco_v2/",
+    "path_guardado_modelo": "../../models/clasificador_reentrenado_sin_transform_0_01_learning.pth",
+    "learning_rate": 0.01,
+    "momentum": 0.9,
+    "step_size": 7,
+    "gamma": 0.1,
+    "numero_epochs": 100,
+    "batch_size": 16,
+    "patience": 10,
+    "valor_perdidas_aceptable": 0.1,
+    "archivo_resultante": "metricas_entrenamiento_clasificacion_tincion",
+    "data_augmentation": "False"
+}

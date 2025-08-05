@@ -14,7 +14,7 @@ import os
 
 
 delim = "."
-path_folder_metrics = '../../resultados/'
+path_folder_metrics = '../../resultados/segmentacion/'
 
 
 def create_metrics_name(directory_path):
@@ -82,7 +82,10 @@ else:
 
 texto_valor_dir_modelo = valores_parametros_modelo[nombre_dir_modelo]
 
-if(Path(texto_valor_dir_modelo).exists()): 
+if ((texto_valor_dir_modelo.isalpha() and texto_valor_dir_modelo == "None") or (texto_valor_dir_modelo == "")):
+    model_file_path = None
+    print("Warning: No se ha especificado un modelo, se empleará el modelo por defecto de Cellpose")
+elif(Path(texto_valor_dir_modelo).exists()): 
     model_file_path = texto_valor_dir_modelo 
 else:
     print("Error, el valor introducido para el path al modelo no es válido")
@@ -148,7 +151,7 @@ if(texto_valor_min_size.isdigit()):
     else:
         print("Error, el valor introducido para la variable min_size no es válido")
         exit()
-    if(((valor_min_size > valor_diameter) and (valor_diameter is not None)) or ((valor_min_size >= 0) and (valor_diameter is None))):
+    if(((valor_diameter is not None) and (valor_min_size > valor_diameter)) or ((valor_min_size >= 0) and (valor_diameter is None))):
         print("Warning: el valor de la variable min_size es mayor que el valor de la variable diameter")
 elif ((texto_valor_min_size.isalpha() and texto_valor_min_size == "None") or (texto_valor_min_size == "")):
     valor_min_size = None
@@ -245,7 +248,10 @@ except Exception as e:
 
 
 try: 
-    model = models.CellposeModel(gpu=True, pretrained_model=model_file_path)
+    if model_file_path is not None:
+        model = models.CellposeModel(gpu=True, pretrained_model=model_file_path)
+    else:
+        model = models.Cellpose(gpu=True, model_type='cyto')
 except Exception as e:
     print(f"Error: {e}")
     print("No se ha podido cargar el modelo")
@@ -331,6 +337,8 @@ for index in range(0, len(resultados_jaccard)):
 print("\n")
 print("Se realizaron las anotaciones jaccard de las imágenes")
 print("La mediana de las anotaciones es ", np.median(resultados_jaccard))
+print("La media de las anotaciones es ", np.mean(resultados_jaccard))
+print("La desviación estándar de las anotaciones es ", np.std(resultados_jaccard))
 print("\n")
 
 del archivo_json, true_list_aux, pred_list_aux, aux

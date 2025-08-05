@@ -4,6 +4,7 @@
 **/*.jpg
 **/*.txt
 **/*.zip
+**/*.csv
 src/ihc/*.json
 
 __pycache__/
@@ -22,6 +23,13 @@ src/ihc/Anotaciones_coco_enviadas/
 src/ihc/Anotaciones_coco_malas/
 IL6_1_reescalado/
 models/
+valores_comp_conexas/
+valores_comp_conexas quedan graficas de los 3 canales/
+valores_clasif_tincion/
+anotaciones_coco_v2/
+resultados_modelo_datos_sin_primer_elem/
+parametros_HSV_RGB_LAB/
+valores_RGB_y_graficas_distancias/
 
 src/ihc/reentrenamiento.py
 src/ihc/training_Copilot.py
